@@ -81,7 +81,7 @@ bot.on("callbackQuery", async (msg) => {
 
 🔸 Nudes que me gusta compartirles 🔞
 
-🔸 La suscripción tiene un costo de acceso mensual por solo $110.00 MXN.
+🔸 La suscripción tiene un costo de acceso mensual por solo $150.00 MXN.
 
 🔸 Para obtener acceso, debes enviar una captura de pantalla de la transferencia o de tu comprobante de pago.
 
@@ -132,7 +132,7 @@ Para unirte es muy sencillo:`,
 
     await bot.sendMessage(
       msg.message.chat.id,
-      `💸 Costo: $110.00 MXN (pesos mexicanos) por 30 días.`,
+      `💸 Costo: $150.00 MXN (pesos mexicanos) por 30 días.`,
     );
 
     await bot.sendMessage(
