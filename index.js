@@ -7,6 +7,10 @@ const bot = new TeleBot({
 
 const usuariosPendientes = {};
 
+const sleep = (ms) => {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+};
+
 /* ==================================================
    START
 ================================================== */
@@ -77,15 +81,15 @@ bot.on("callbackQuery", async (msg) => {
 
 🔸 En el canal encontrarás mucho contenido, sin censura,🔥 exclusivo⭐ y completo😏
 
-🔸 Fotos y videos al momento 📹
+🔸 Fotos y videos 📹
 
-🔸 Nudes que me gusta compartirles 🔞
+🔸 Colaboraciones  🔞
 
-🔸 La suscripción tiene un costo de acceso mensual por solo $110.00 MXN.
+🔸 La suscripción tiene un costo de acceso mensual por solo $150.00 MXN (PESOS) o $9.00 USD (DOLARES).
 
 🔸 Para obtener acceso, debes enviar una captura de pantalla de la transferencia o de tu comprobante de pago.
 
-🔸 Tu suscripción me ayuda a seguir creciendo como creador de contenido y estar al pendiente de mi comunidad.
+🔸 Tu suscripción me ayuda a seguir creciendo como creador de contenido.
 
 ¿Deseas continuar al proceso de pago o cancelar?`,
       {
@@ -120,6 +124,7 @@ bot.on("callbackQuery", async (msg) => {
 
 Para unirte es muy sencillo:`,
     );
+    await sleep(1800);
 
     await bot.sendMessage(
       msg.message.chat.id,
@@ -129,12 +134,12 @@ Para unirte es muy sencillo:`,
 
 3️⃣ ¡Listo! ⭐ Una vez enviado, el administrador verificará tu pago y te dará acceso ℹ️`,
     );
-
+    await sleep(1500);
     await bot.sendMessage(
       msg.message.chat.id,
-      `💸 Costo: $110.00 MXN (pesos mexicanos) por 30 días.`,
+      `💸 Costo: $150.00 MXN (pesos mexicanos) o $9.00 USD (dolares estadounidenses) por 30 días.`,
     );
-
+    await sleep(1800);
     await bot.sendMessage(
       msg.message.chat.id,
       `🪙 Número de tarjeta (BBVA):
@@ -143,6 +148,7 @@ Para unirte es muy sencillo:`,
 
 Titular: Fernando Santiago`,
     );
+    await sleep(1800);
 
     await bot.sendMessage(
       msg.message.chat.id,
@@ -150,10 +156,10 @@ Titular: Fernando Santiago`,
 
 https://paypal.me/SagNando`,
     );
-
+    await sleep(1000);
     return bot.sendMessage(
       msg.message.chat.id,
-      `💟 ESPERO TU COMPROBANTE
+      `💟 ENVIA TU COMPROBANTE! 📲
 
 Si no deseas continuar o suscribirte, puedes cancelar en cualquier momento.`,
       {
@@ -204,24 +210,35 @@ bot.on("photo", async (msg) => {
 
   const fileId = msg.photo[msg.photo.length - 1].file_id;
 
-  usuariosPendientes[userId].status = "pendiente_revision";
-  usuariosPendientes[userId].fileId = fileId;
+  usuariosPendientes[userId] = {
+    status: "pendiente_revision",
+    fileId: fileId,
+    firstName: msg.from.first_name,
+    lastName: msg.from.last_name || "",
+    username: msg.from.username || "Sin username",
+    id: userId,
+  };
 
   await bot.sendMessage(
     msg.chat.id,
     "✅ Comprobante recibido. El administrador revisará tu pago pronto.",
   );
-
+  await sleep(1500);
   await bot.sendPhoto(CONSTANTS.ADMIN_ID, fileId, {
-    caption: `📩 Nuevo comprobante de ${msg.from.first_name}
-@${msg.from.username || "sin_username"}
+    caption: `📩 NUEVO COMPROBANTE
 
-ID: ${userId}
+👤 Nombre: ${msg.from.first_name} ${msg.from.last_name || ""}
 
-Apruébalo con:
+📛 Usuario: @${msg.from.username || "Sin username"}
+
+🆔 ID: ${userId}
+
+────────────────────
+
+✅ Aprobar:
 /aprobar ${userId}
 
-Recházalo con:
+❌ Rechazar:
 /rechazar ${userId}`,
   });
 });
@@ -247,7 +264,7 @@ bot.on(/^\/aprobar (.+)$/, async (msg, props) => {
 
 Pronto recibirás acceso al canal premium.`,
     );
-
+    await sleep(1200);
     delete usuariosPendientes[userId];
 
     return bot.sendMessage(msg.chat.id, "✅ Usuario aprobado correctamente.");
