@@ -1,0 +1,15 @@
+{
+  "name": "sag_nando_bot",
+  "version": "1.0.0",
+  "description": "contact here for my exclusive content",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node index.js"
+  },
+  "author": "Sag Nando",
+  "license": "ISC",
+  "dependencies": {
+    "telebot": "^1.4.1"
+  }
+}

@@ -1,0 +1,8 @@
+const TELEGRAM_TOKEN = "8467124264:AAGrW1BOQpSddCLjZw5B6aJ1cxPTaLLlr1k";
+const ADMIN_ID = 5737207904;
+const PREMIUM_CHANNEL_ID = -1002398342473;
+module.exports = {
+  TELEGRAM_TOKEN,
+  ADMIN_ID: Number(process.env.ADMIN_ID),
+  PREMIUM_CHANNEL_ID: Number(process.env.PREMIUM_CHANNEL_ID),
+};
