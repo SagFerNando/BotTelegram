@@ -1,5 +1,6 @@
 const TeleBot = require("telebot");
 const CONSTANTS = require("./constants");
+const axios = require("axios");
 
 const bot = new TeleBot({
   token: CONSTANTS.TELEGRAM_TOKEN,
@@ -11,6 +12,30 @@ const sleep = (ms) => {
   return new Promise((resolve) => setTimeout(resolve, ms));
 };
 
+//generar enlace de invitacion/////////
+
+async function generarEnlaceInvitacion() {
+  const expireDate = Math.floor(Date.now() / 1000) + 24 * 60 * 60;
+
+  try {
+    const response = await axios.post(
+      `https://api.telegram.org/bot${CONSTANTS.TELEGRAM_TOKEN}/createChatInviteLink`,
+      {
+        chat_id: CONSTANTS.PREMIUM_CHANNEL_ID,
+        name: "Acceso Premium",
+        expire_date: expireDate,
+        member_limit: 1,
+      },
+    );
+
+    return response.data.result.invite_link;
+  } catch (error) {
+    console.log("===== ERROR TELEGRAM API =====");
+    console.log(error.response?.data || error);
+
+    return null;
+  }
+}
 /* ==================================================
    START
 ================================================== */
@@ -224,6 +249,7 @@ bot.on("photo", async (msg) => {
     "✅ Comprobante recibido. El administrador revisará tu pago pronto.",
   );
   await sleep(1500);
+
   await bot.sendPhoto(CONSTANTS.ADMIN_ID, fileId, {
     caption: `📩 NUEVO COMPROBANTE
 
@@ -234,12 +260,11 @@ bot.on("photo", async (msg) => {
 🆔 ID: ${userId}
 
 ────────────────────
+    ✅ Aprobar:
+    /aprobar_${userId}
 
-✅ Aprobar:
-/aprobar ${userId}
-
-❌ Rechazar:
-/rechazar ${userId}`,
+    ❌ Rechazar:
+    /rechazar_${userId}`,
   });
 });
 
@@ -247,51 +272,72 @@ bot.on("photo", async (msg) => {
    APROBAR
 ================================================== */
 
-bot.on(/^\/aprobar (.+)$/, async (msg, props) => {
+bot.on("text", async (msg) => {
+  if (!msg.text.startsWith("/aprobar")) return;
+
   console.log("===== COMANDO APROBAR =====");
 
   if (msg.from.id !== CONSTANTS.ADMIN_ID) {
-    console.log("No es el administrador.");
     return bot.sendMessage(
       msg.chat.id,
       "🚫 No tienes permiso para usar este comando.",
     );
   }
 
-  const userId = Number(props.match[1]);
+  const partes = msg.text.trim().split("_");
 
-  console.log("ID del usuario:", userId);
-  console.log("Datos guardados:", usuariosPendientes[userId]);
+  if (partes.length < 2) {
+    return bot.sendMessage(msg.chat.id, "Uso correcto:\n/aprobar_<id_usuario>");
+  }
+
+  const userId = Number(partes[1]);
+
+  if (isNaN(userId)) {
+    return bot.sendMessage(msg.chat.id, "❌ El ID del usuario no es válido.");
+  }
 
   try {
-    console.log("Intentando enviar mensaje al usuario...");
+    console.log("Generando enlace...");
 
-    const respuesta = await bot.sendMessage(
+    const enlace = await generarEnlaceInvitacion();
+
+    if (!enlace) {
+      return bot.sendMessage(
+        msg.chat.id,
+        "❌ No fue posible generar el enlace de invitación.",
+      );
+    }
+
+    console.log("Enlace generado:", enlace);
+
+    await bot.sendMessage(
       userId,
-      `🎉 Tu pago fue aprobado.
+      `🎉 ¡Tu pago fue aprobado! ✅
 
-Pronto recibirás acceso al canal premium.`,
+  Ya puedes ingresar al canal premium utilizando el siguiente enlace:
+
+  ${enlace}
+
+  ⚠️ Este enlace:
+
+  • Solo puede usarse una vez.
+  • Expira en 24 horas.`,
     );
 
-    console.log("Mensaje enviado correctamente:");
-    console.log(respuesta);
-
-    await sleep(1200);
+    console.log("Mensaje enviado correctamente al usuario.");
 
     delete usuariosPendientes[userId];
 
-    console.log("Usuario eliminado de la lista.");
-
     return bot.sendMessage(msg.chat.id, "✅ Usuario aprobado correctamente.");
   } catch (error) {
-    console.log("ERROR COMPLETO:");
-    console.log(error);
+    console.log("===== ERROR =====");
+    console.log(error.response?.data || error);
 
     return bot.sendMessage(
       msg.chat.id,
       `Error al aprobar usuario:
 
-${error.message}`,
+  ${error.message}`,
     );
   }
 });
@@ -300,43 +346,49 @@ ${error.message}`,
    RECHAZAR
 ================================================== */
 
-bot.on(/^\/rechazar (.+)$/, async (msg, props) => {
+bot.on("text", async (msg) => {
+  if (!msg.text.startsWith("/rechazar")) return;
+
   console.log("===== COMANDO RECHAZAR =====");
 
   if (msg.from.id !== CONSTANTS.ADMIN_ID) {
-    console.log("No es el administrador.");
     return bot.sendMessage(
       msg.chat.id,
       "🚫 No tienes permiso para usar este comando.",
     );
   }
 
-  const userId = Number(props.match[1]);
+  const partes = msg.text.trim().split("_");
 
-  console.log("ID del usuario:", userId);
-  console.log("Datos guardados:", usuariosPendientes[userId]);
+  if (partes.length < 2) {
+    return bot.sendMessage(
+      msg.chat.id,
+      "Uso correcto:\n/rechazar_<id_usuario>",
+    );
+  }
+
+  const userId = Number(partes[1]);
+
+  if (isNaN(userId)) {
+    return bot.sendMessage(msg.chat.id, "❌ El ID del usuario no es válido.");
+  }
 
   try {
     console.log("Intentando enviar mensaje al usuario...");
 
-    const respuesta = await bot.sendMessage(
+    await bot.sendMessage(
       userId,
       `❌ Tu comprobante fue rechazado.
 
 Si crees que es un error, contacta al administrador.`,
     );
 
-    console.log("Mensaje enviado correctamente:");
-    console.log(respuesta);
-
     delete usuariosPendientes[userId];
-
-    console.log("Usuario eliminado de la lista.");
 
     return bot.sendMessage(msg.chat.id, "🚫 Usuario rechazado.");
   } catch (error) {
-    console.log("ERROR COMPLETO:");
-    console.log(error);
+    console.log("===== ERROR =====");
+    console.log(error.response?.data || error);
 
     return bot.sendMessage(
       msg.chat.id,
