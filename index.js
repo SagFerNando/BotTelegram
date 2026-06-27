@@ -248,7 +248,10 @@ bot.on("photo", async (msg) => {
 ================================================== */
 
 bot.on(/^\/aprobar (.+)$/, async (msg, props) => {
+  console.log("===== COMANDO APROBAR =====");
+
   if (msg.from.id !== CONSTANTS.ADMIN_ID) {
+    console.log("No es el administrador.");
     return bot.sendMessage(
       msg.chat.id,
       "🚫 No tienes permiso para usar este comando.",
@@ -257,18 +260,33 @@ bot.on(/^\/aprobar (.+)$/, async (msg, props) => {
 
   const userId = Number(props.match[1]);
 
+  console.log("ID del usuario:", userId);
+  console.log("Datos guardados:", usuariosPendientes[userId]);
+
   try {
-    await bot.sendMessage(
+    console.log("Intentando enviar mensaje al usuario...");
+
+    const respuesta = await bot.sendMessage(
       userId,
       `🎉 Tu pago fue aprobado.
 
 Pronto recibirás acceso al canal premium.`,
     );
+
+    console.log("Mensaje enviado correctamente:");
+    console.log(respuesta);
+
     await sleep(1200);
+
     delete usuariosPendientes[userId];
+
+    console.log("Usuario eliminado de la lista.");
 
     return bot.sendMessage(msg.chat.id, "✅ Usuario aprobado correctamente.");
   } catch (error) {
+    console.log("ERROR COMPLETO:");
+    console.log(error);
+
     return bot.sendMessage(
       msg.chat.id,
       `Error al aprobar usuario:
@@ -283,7 +301,10 @@ ${error.message}`,
 ================================================== */
 
 bot.on(/^\/rechazar (.+)$/, async (msg, props) => {
+  console.log("===== COMANDO RECHAZAR =====");
+
   if (msg.from.id !== CONSTANTS.ADMIN_ID) {
+    console.log("No es el administrador.");
     return bot.sendMessage(
       msg.chat.id,
       "🚫 No tienes permiso para usar este comando.",
@@ -292,16 +313,38 @@ bot.on(/^\/rechazar (.+)$/, async (msg, props) => {
 
   const userId = Number(props.match[1]);
 
-  await bot.sendMessage(
-    userId,
-    `❌ Tu comprobante fue rechazado.
+  console.log("ID del usuario:", userId);
+  console.log("Datos guardados:", usuariosPendientes[userId]);
+
+  try {
+    console.log("Intentando enviar mensaje al usuario...");
+
+    const respuesta = await bot.sendMessage(
+      userId,
+      `❌ Tu comprobante fue rechazado.
 
 Si crees que es un error, contacta al administrador.`,
-  );
+    );
 
-  delete usuariosPendientes[userId];
+    console.log("Mensaje enviado correctamente:");
+    console.log(respuesta);
 
-  return bot.sendMessage(msg.chat.id, "🚫 Usuario rechazado.");
+    delete usuariosPendientes[userId];
+
+    console.log("Usuario eliminado de la lista.");
+
+    return bot.sendMessage(msg.chat.id, "🚫 Usuario rechazado.");
+  } catch (error) {
+    console.log("ERROR COMPLETO:");
+    console.log(error);
+
+    return bot.sendMessage(
+      msg.chat.id,
+      `Error al rechazar usuario:
+
+${error.message}`,
+    );
+  }
 });
 
 /* ==================================================
