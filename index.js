@@ -100,7 +100,7 @@ bot.on("callbackQuery", async (msg) => {
 
     return bot.sendMessage(
       msg.message.chat.id,
-      `📘 Detalles del canal 🔞
+      `📘 Detalles del canal 🔞 >>>>>OFFER!!!!🉐
 
 🔸 El canal ofrece contenido exclusivo para suscriptores.
 
@@ -110,7 +110,7 @@ bot.on("callbackQuery", async (msg) => {
 
 🔸 Colaboraciones  🔞
 
-🔸 La suscripción tiene un costo de acceso mensual por solo $150.00 MXN (PESOS) o $9.00 USD (DOLARES).
+🔸 La suscripción tiene un costo de acceso mensual por solo $100.00 MXN (PESOS) o $5.99 USD (DOLARES). El Primer mes, y por cupos limitados, luego el costo mensual sera de  $150.00  MXN.
 
 🔸 Para obtener acceso, debes enviar una captura de pantalla de la transferencia o de tu comprobante de pago.
 
@@ -162,7 +162,7 @@ Para unirte es muy sencillo:`,
     await sleep(1500);
     await bot.sendMessage(
       msg.message.chat.id,
-      `💸 Costo: $150.00 MXN (pesos mexicanos) o $9.00 USD (dolares estadounidenses) por 30 días.`,
+      `💸 Costo: $100.00 MXN (pesos mexicanos) o $5.99 USD (dolares estadounidenses) por 30 días.`,
     );
     await sleep(1800);
     await bot.sendMessage(
@@ -170,6 +170,9 @@ Para unirte es muy sencillo:`,
       `🪙 Número de tarjeta (BBVA):
 
 4815 1630 4314 5997
+
+Concepto:
+TLG
 
 Titular: Fernando Santiago`,
     );
@@ -212,6 +215,83 @@ Si no deseas continuar o suscribirte, puedes cancelar en cualquier momento.`,
       `🚫 Proceso cancelado.
 
 Puedes escribir /start para comenzar de nuevo. 😊`,
+    );
+  }
+
+  /* ---------------- RENOVAR PAGO ---------------- */
+  if (opcion === "renovar_pago") {
+    usuariosPendientes[userId] = {
+      status: "esperando_comprobante",
+    };
+
+    await bot.sendMessage(
+      msg.message.chat.id,
+      `¡Perfecto! 😄
+
+    Puedes realizar el pago utilizando cualquiera de los siguientes métodos. Recuerda el costo.`,
+    );
+    await sleep(1500);
+    await bot.sendMessage(
+      msg.message.chat.id,
+      `💸 Costo: $100.00 MXN (pesos mexicanos) o $5.99 USD (dolares estadounidenses) por 30 días.`,
+    );
+
+    await sleep(1200);
+
+    await bot.sendMessage(
+      msg.message.chat.id,
+      `💳 BBVA
+
+        4815 1630 4314 5997
+
+        Concepto:
+        Renovacion
+
+        Titular:
+        Fernando Santiago`,
+    );
+
+    await sleep(1200);
+
+    await bot.sendMessage(
+      msg.message.chat.id,
+      `💲 PayPal
+
+https://paypal.me/SagNando`,
+    );
+
+    await sleep(1200);
+
+    return bot.sendMessage(
+      msg.message.chat.id,
+      `📸 Una vez realizado el pago, envíame aquí tu comprobante para comenzar la verificación.`,
+      {
+        replyMarkup: {
+          inline_keyboard: [
+            [
+              {
+                text: "❌ Cancelar",
+                callback_data: "cancelar_renovacion",
+              },
+            ],
+          ],
+        },
+      },
+    );
+  }
+  /* ---------------- CANCELAR RENOVACION ---------------- */
+  if (opcion === "cancelar_renovacion") {
+    delete usuariosPendientes[userId];
+
+    return bot.sendMessage(
+      msg.message.chat.id,
+      `Entendido. 😊
+
+        No se iniciará el proceso de renovación.
+
+        Si en cualquier momento deseas volver a suscribirte, solo envíame un mensaje o escribe /start y con gusto te ayudaré nuevamente.
+
+        ¡Gracias por haber formado parte del canal! ❤️`,
     );
   }
 });
@@ -264,7 +344,13 @@ bot.on("photo", async (msg) => {
     /aprobar_${userId}
 
     ❌ Rechazar:
-    /rechazar_${userId}`,
+    /rechazar_${userId}
+
+    📲 Recordar pago:
+    /recordarPago_${userId}
+    
+    👍🏻 Aceptar Renovacion:
+    /aceptarRenovacion_${userId}`,
   });
 });
 
@@ -314,14 +400,14 @@ bot.on("text", async (msg) => {
       userId,
       `🎉 ¡Tu pago fue aprobado! ✅
 
-  Ya puedes ingresar al canal premium utilizando el siguiente enlace:
+        Ya puedes ingresar al canal premium utilizando el siguiente enlace:
 
-  ${enlace}
+        ${enlace}
 
-  ⚠️ Este enlace:
+        ⚠️ Este enlace:
 
-  • Solo puede usarse una vez.
-  • Expira en 24 horas.`,
+        • Solo puede usarse una vez.
+        • Expira en 24 horas.`,
     );
 
     console.log("Mensaje enviado correctamente al usuario.");
@@ -397,6 +483,109 @@ Si crees que es un error, contacta al administrador.`,
 ${error.message}`,
     );
   }
+});
+/* ==================================================
+   RECORDAR PAGO
+================================================== */
+bot.on("text", async (msg) => {
+  if (!msg.text.startsWith("/recordarPago")) return;
+
+  console.log("===== COMANDO RECORDAR PAGO =====");
+  if (msg.from.id !== CONSTANTS.ADMIN_ID) {
+    return bot.sendMessage(
+      msg.chat.id,
+      "🚫 No tienes permiso para usar este comando.",
+    );
+  }
+
+  const partes = msg.text.trim().split("_");
+
+  if (partes.length < 2) {
+    return bot.sendMessage(msg.chat.id, "Uso:\n/recordarPago <id_usuario>");
+  }
+
+  const userId = Number(partes[1]);
+
+  if (isNaN(userId)) {
+    return bot.sendMessage(msg.chat.id, "ID inválido.");
+  }
+
+  usuariosPendientes[userId] = {
+    status: "recordatorio_pago",
+  };
+
+  await bot.sendMessage(
+    userId,
+    `👋 ¡Hola!
+
+  Te recordamos que tu suscripción al canal premium está próxima a vencer. ⏳
+
+  Para continuar disfrutando del contenido exclusivo es necesario realizar el pago correspondiente a tu siguiente mensualidad.
+
+  Si no recibimos tu comprobante, tu acceso al canal podrá ser cancelado cuando finalice tu periodo actual.`,
+    {
+      replyMarkup: {
+        inline_keyboard: [
+          [
+            {
+              text: "💳 Renovar suscripción",
+              callback_data: "renovar_pago",
+            },
+          ],
+          [
+            {
+              text: "❌ No renovar",
+              callback_data: "cancelar_renovacion",
+            },
+          ],
+        ],
+      },
+    },
+  );
+
+  return bot.sendMessage(msg.chat.id, "✅ Recordatorio enviado correctamente.");
+});
+/* ==================================================
+   ACEPTAR RENOVACION
+================================================== */
+bot.on("text", async (msg) => {
+  if (!msg.text.startsWith("/aceptarRenovacion")) return;
+
+  console.log("===== COMANDO ACEPTAR RENOVACION =====");
+  if (msg.from.id !== CONSTANTS.ADMIN_ID) {
+    return bot.sendMessage(
+      msg.chat.id,
+      "🚫 No tienes permiso para usar este comando.",
+    );
+  }
+
+  const partes = msg.text.trim().split("_");
+  if (partes.length < 2) {
+    return bot.sendMessage(
+      msg.chat.id,
+      "Uso:\n/aceptarRenovacion <id_usuario>",
+    );
+  }
+
+  const userId = Number(partes[1]);
+  if (isNaN(userId)) {
+    return bot.sendMessage(msg.chat.id, "ID inválido.");
+  }
+
+  await bot.sendMessage(
+    userId,
+    `🎉 ¡Pago recibido y verificado! ✅
+
+    Tu suscripción ha sido renovada correctamente.
+
+    ✨ Puedes seguir disfrutando del canal premium con normalidad durante los próximos 30 días.
+
+    ¡Muchas gracias por seguir apoyando mi contenido! ❤️`,
+  );
+  console.log("Mensaje enviado correctamente al usuario.");
+
+  delete usuariosPendientes[userId];
+  return bot.sendMessage(msg.chat.id, "✅ Usuario aprobado correctamente.");
 });
 
 /* ==================================================
