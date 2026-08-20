@@ -110,9 +110,12 @@ bot.on("callbackQuery", async (msg) => {
 
 🔸 Colaboraciones  🔞
 
-🔸 La suscripción tiene un costo de acceso mensual por solo $100.00 MXN (PESOS) o $5.99 USD (DOLARES). El Primer mes, y por cupos limitados, luego el costo mensual sera de  $150.00  MXN.
+🔸 La suscripción tiene un costo de acceso mensual por solo $120.00 MXN (PESOS) o $7.00 USD (DOLARES). El Primer mes, y por cupos limitados, luego el costo mensual sera de  $170.00  MXN.
+
+🔸 😈😈 APROVECHA SOLO HOY! DOS MESES POR $200.00 MXN (PESOS) o $11.80 USD (DOLARES), Envia tu comprobante.
 
 🔸 Para obtener acceso, debes enviar una captura de pantalla de la transferencia o de tu comprobante de pago.
+
 
 🔸 Tu suscripción me ayuda a seguir creciendo como creador de contenido.
 
@@ -162,7 +165,7 @@ Para unirte es muy sencillo:`,
     await sleep(1500);
     await bot.sendMessage(
       msg.message.chat.id,
-      `💸 Costo: $100.00 MXN (pesos mexicanos) o $5.99 USD (dolares estadounidenses) por 30 días.`,
+      `💸 Costo: $120.00 MXN (pesos mexicanos) o $7.00 USD (dolares estadounidenses) por 30 días.`,
     );
     await sleep(1800);
     await bot.sendMessage(
@@ -183,6 +186,11 @@ Titular: Fernando Santiago`,
       `💲 También puedes pagar por PayPal:
 
 https://paypal.me/SagNando`,
+    );
+    await sleep(1500);
+    await bot.sendMessage(
+      msg.message.chat.id,
+      `🌟 APROVECHA SOLO HOY! DOS MESES POR $200.00 MXN (PESOS) o $11.80 USD (DOLARES), \nEnvia tu comprobante.Con Concepto >> 2MS`,
     );
     await sleep(1000);
     return bot.sendMessage(
@@ -233,7 +241,7 @@ Puedes escribir /start para comenzar de nuevo. 😊`,
     await sleep(1500);
     await bot.sendMessage(
       msg.message.chat.id,
-      `💸 Costo: $100.00 MXN (pesos mexicanos) o $5.99 USD (dolares estadounidenses) por 30 días.`,
+      `💸 Costo: $120.00 MXN (pesos mexicanos) o $7.00 USD (dolares estadounidenses) por 30 días.`,
     );
 
     await sleep(1200);
@@ -350,7 +358,10 @@ bot.on("photo", async (msg) => {
     /recordarPago_${userId}
     
     👍🏻 Aceptar Renovacion:
-    /aceptarRenovacion_${userId}`,
+    /aceptarRenovacion_${userId}
+    
+    ⛔ Eliminar del canal:
+    /eliminar_${userId}`,
   });
 });
 
@@ -586,6 +597,123 @@ bot.on("text", async (msg) => {
 
   delete usuariosPendientes[userId];
   return bot.sendMessage(msg.chat.id, "✅ Usuario aprobado correctamente.");
+});
+/*===================================================
+Eliminar Usuario
+====================================*/
+bot.on("text", async (msg) => {
+  if (!msg.text.startsWith("/eliminar")) return;
+
+  console.log("===== COMANDO ELIMINAR =====");
+
+  if (msg.from.id !== CONSTANTS.ADMIN_ID) {
+    return bot.sendMessage(
+      msg.chat.id,
+      "🚫 No tienes permiso para usar este comando.",
+    );
+  }
+
+  const partes = msg.text.trim().split("_");
+
+  if (partes.length < 2) {
+    return bot.sendMessage(msg.chat.id, "Uso:\n/eliminar_<id_usuario>");
+  }
+
+  const userId = Number(partes[1]);
+
+  if (isNaN(userId)) {
+    return bot.sendMessage(msg.chat.id, "❌ ID inválido.");
+  }
+
+  if (userId === CONSTANTS.ADMIN_ID) {
+    return bot.sendMessage(
+      msg.chat.id,
+      "🚫 No puedes eliminar al administrador del bot.",
+    );
+  }
+
+  try {
+    // Comprobar si está en el canal
+    const respuesta = await axios.get(
+      `https://api.telegram.org/bot${CONSTANTS.TELEGRAM_TOKEN}/getChatMember`,
+      {
+        params: {
+          chat_id: CONSTANTS.PREMIUM_CHANNEL_ID,
+          user_id: userId,
+        },
+      },
+    );
+
+    const status = respuesta.data.result.status;
+
+    console.log("Usuario:", userId);
+    console.log("Estado:", status);
+
+    // Si no está dentro
+    if (
+      status !== "member" &&
+      status !== "administrator" &&
+      status !== "creator"
+    ) {
+      return bot.sendMessage(
+        msg.chat.id,
+        `ℹ️ El usuario no está actualmente en el canal.
+
+🆔 ID: ${userId}
+📌 Estado: ${status}`,
+      );
+    }
+
+    // Eliminar usuario
+    await axios.post(
+      `https://api.telegram.org/bot${CONSTANTS.TELEGRAM_TOKEN}/banChatMember`,
+      {
+        chat_id: CONSTANTS.PREMIUM_CHANNEL_ID,
+        user_id: userId,
+      },
+    );
+
+    console.log("Usuario eliminado del canal.");
+
+    // Avisar al usuario
+    try {
+      await bot.sendMessage(
+        userId,
+        `⚠️ Tu acceso al canal premium ha sido cancelado.
+
+Has sido retirado del canal.
+
+Si deseas volver a suscribirte, puedes iniciar nuevamente el proceso utilizando /start.`,
+      );
+
+      console.log("Mensaje enviado correctamente al usuario.");
+    } catch (error) {
+      console.log(
+        "No se pudo enviar el mensaje al usuario:",
+        error.response?.data || error.message,
+      );
+    }
+
+    delete usuariosPendientes[userId];
+
+    return bot.sendMessage(
+      msg.chat.id,
+      `✅ Usuario eliminado correctamente.
+
+🆔 ID: ${userId}
+📌 Estado anterior: ${status}`,
+    );
+  } catch (error) {
+    console.log("===== ERROR AL ELIMINAR =====");
+    console.log(error.response?.data || error);
+
+    return bot.sendMessage(
+      msg.chat.id,
+      `❌ No fue posible eliminar al usuario.
+
+${error.response?.data?.description || error.message}`,
+    );
+  }
 });
 
 /* ==================================================
