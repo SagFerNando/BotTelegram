@@ -1,6 +1,8 @@
-const TELEGRAM_TOKEN = "8467124264:AAGrW1BOQpSddCLjZw5B6aJ1cxPTaLLlr1k";
-const ADMIN_ID = 5737207904;
-const PREMIUM_CHANNEL_ID = -1002398342473;
+require("dotenv").config();
+
+const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN;
+const ADMIN_ID = Number(process.env.ADMIN_ID);
+const PREMIUM_CHANNEL_ID = Number(process.env.PREMIUM_CHANNEL_ID);
 
 module.exports = {
   TELEGRAM_TOKEN,
