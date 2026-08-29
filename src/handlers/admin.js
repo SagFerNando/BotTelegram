@@ -20,12 +20,7 @@ module.exports = (bot) => {
       return;
     }
 
-    console.log("===== COMANDO APROBAR =====");
-    console.log("Texto recibido:", msg.text);
-
     if (msg.from.id !== CONFIG.ADMIN_ID) {
-      console.log("No es el administrador.");
-
       return bot.sendMessage(
         msg.chat.id,
         "🚫 No tienes permiso para usar este comando.",
@@ -44,11 +39,7 @@ module.exports = (bot) => {
       return bot.sendMessage(msg.chat.id, "❌ El ID del usuario no es válido.");
     }
 
-    console.log("ID del usuario:", userId);
-    console.log("Datos guardados:", usuariosPendientes[userId]);
-
     try {
-      console.log("Generando enlace...");
       //Se genera el enlace de Invitacion al canal mediante esta funcion del archivo telegram.js
       const enlace = await generarEnlaceInvitacion();
 
@@ -75,13 +66,9 @@ ${enlace}
 • Expira en 24 horas.`,
       );
 
-      console.log("Mensaje enviado correctamente al usuario.");
-
       await sleep(1200);
 
       delete usuariosPendientes[userId];
-
-      console.log("Usuario eliminado de la lista.");
 
       return bot.sendMessage(msg.chat.id, "✅ Usuario aprobado correctamente.");
     } catch (error) {
@@ -109,12 +96,7 @@ ${error.message}`,
       return;
     }
 
-    console.log("===== COMANDO RECHAZAR =====");
-    console.log("Texto recibido:", msg.text);
-
     if (msg.from.id !== CONFIG.ADMIN_ID) {
-      console.log("No es el administrador.");
-
       return bot.sendMessage(
         msg.chat.id,
         "🚫 No tienes permiso para usar este comando.",
@@ -133,12 +115,7 @@ ${error.message}`,
       return bot.sendMessage(msg.chat.id, "❌ El ID del usuario no es válido.");
     }
 
-    console.log("ID del usuario:", userId);
-    console.log("Datos guardados:", usuariosPendientes[userId]);
-
     try {
-      console.log("Intentando enviar mensaje al usuario...");
-
       const respuesta = await bot.sendMessage(
         userId,
         `❌ Tu comprobante fue rechazado.
@@ -151,8 +128,6 @@ Si crees que es un error, contacta al administrador.`,
       console.log(respuesta);
 
       delete usuariosPendientes[userId];
-
-      console.log("Usuario eliminado de la lista.");
 
       return bot.sendMessage(msg.chat.id, "🚫 Usuario rechazado.");
     } catch (error) {
@@ -178,8 +153,6 @@ ${error.message}`,
     if (!msg.text.startsWith("/recordarPago_")) {
       return;
     }
-
-    console.log("===== COMANDO RECORDAR PAGO =====");
 
     if (msg.from.id !== CONFIG.ADMIN_ID) {
       return bot.sendMessage(
@@ -275,8 +248,6 @@ ${error.message}`,
       return;
     }
 
-    console.log("===== COMANDO ACEPTAR RENOVACION =====");
-
     if (msg.from.id !== CONFIG.ADMIN_ID) {
       return bot.sendMessage(
         msg.chat.id,
@@ -308,8 +279,6 @@ Tu suscripción ha sido renovada correctamente.
 ¡Muchas gracias por seguir apoyando mi contenido! ❤️`,
       );
 
-      console.log("Mensaje enviado correctamente al usuario.");
-
       delete usuariosPendientes[userId];
 
       return bot.sendMessage(msg.chat.id, "✅ Usuario aprobado correctamente.");
@@ -337,8 +306,6 @@ ${error.message}`,
       return;
     }
 
-    console.log("===== COMANDO ELIMINAR =====");
-
     if (msg.from.id !== CONFIG.ADMIN_ID) {
       return bot.sendMessage(
         msg.chat.id,
@@ -357,8 +324,6 @@ ${error.message}`,
     if (isNaN(userId)) {
       return bot.sendMessage(msg.chat.id, "❌ ID inválido.");
     }
-
-    console.log("Comprobando usuario:", userId);
 
     try {
       const miembro = await verificarUsuarioEnCanal(userId);
