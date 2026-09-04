@@ -119,8 +119,13 @@ ${error.message}`,
       const respuesta = await bot.sendMessage(
         userId,
         `❌ Tu comprobante fue rechazado.
+Verifica:
+> Que sea correcto y total el monto Transferido.
+> Que sea legible, correcta y comprobable tu comprobante.
+> Que tu comprobante sea sobre el pago y no de otra cuestion.
+> Si todo es correcto comienza el proceso de nuevo y envia tu comprobante nuevamente.
 
-Si crees que es un error, contacta al administrador.`,
+Si crees que es un error, contacta al administrador o envia un nuevo comprobante con una nota de la situacion en la imagen.`,
       );
 
       console.log("Mensaje enviado correctamente:");
@@ -181,20 +186,20 @@ ${error.message}`,
 
 Para continuar disfrutando del contenido premium debes realizar nuevamente tu pago.
 
-💸 Costo  >>>>>OFFER!!!!🉐:
-$120.00 MXN
-o
-$7.00 USD
+💸 Costo: $${NEGOCIO.precios.mensual.mxn}.00 MXN (pesos mexicanos) o $${NEGOCIO.precios.mensual.usd} USD (dolares estadounidenses) 
 
-🪙 Pago mediante BBVA:
+por ${NEGOCIO.precios.mensual.dias} días.
 
-4815 1630 4314 5997
+🪙 Número de tarjeta (BBVA):
+          
+          ${CONFIG.PAYMENT_CARD}
 
-Titular: Fernando Santiago
+        Titular: ${CONFIG.PAYMENT_HOLDER}
+        
+        Concepto: TLG
 
-💲 También puedes pagar mediante PayPal:
-
-https://paypal.me/SagNando
+💲 También puedes pagar por PayPal:
+        ${CONFIG.PAYPAL_URL}
 
 Una vez realizado el pago, envía tu comprobante para verificarlo.
 
