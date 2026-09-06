@@ -1,6 +1,7 @@
 const usuariosPendientes = require("../data/usuarios");
 const sleep = require("../utils/sleep");
 const CONFIG = require("../config/config");
+const NEGOCIO = require("../config/globals");
 
 const {
   generarEnlaceInvitacion,
