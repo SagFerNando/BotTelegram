@@ -17,3 +17,5 @@ logs/
 # Archivos del sistema
 .DS_Store
 Thumbs.db
+
+test-suscripciones.js

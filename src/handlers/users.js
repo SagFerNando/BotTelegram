@@ -2,51 +2,78 @@ const usuariosPendientes = require("../data/usuarios");
 const sleep = require("../utils/sleep.js");
 const CONFIG = require("../config/config");
 const NEGOCIO = require("../config/globals");
+const {
+  crearPago,
+  obtenerPagoPendientePorSuscripcion,
+} = require("../data/pagos");
+const {
+  obtenerSuscripcionActiva,
+  actualizarEstadoSuscripcion,
+  obtenerSuscripcionPendiente,
+  crearSuscripcion,
+} = require("../data/suscripciones.js");
+const { crear_ObtenerUsuario } = require("../data/usuarios");
 
 module.exports = (bot) => {
   /* ==================================================
      START
   ================================================== */
 
-  bot.on("/start", (msg) => {
+  bot.on("/start", async (msg) => {
     const userId = msg.from.id;
 
-    usuariosPendientes[userId] = {
-      status: "inicio",
-    };
+    try {
+      await crear_ObtenerUsuario({
+        telegram_id: userId,
+        username: msg.from.username || null,
+        nombre: msg.from.first_name || null,
+      });
 
-    return bot.sendMessage(
-      msg.chat.id,
-      `👋 ¡Hola! Bienvenido al Chat de acceso a mi canal premium.
+      usuariosPendientes[userId] = {
+        status: "inicio",
+      };
 
-En este espacio encontrarás toda la información para que puedas acceder a mi contenido exclusivo 🔞🔥
+      return bot.sendMessage(
+        msg.chat.id,
+        `👋 ¡Hola! Bienvenido al Chat de acceso a mi canal premium.
 
-Puedes elegir una opción para continuar:`,
-      {
-        replyMarkup: {
-          inline_keyboard: [
-            [
-              {
-                text: "📘 Detalles del canal 🔞",
-                callback_data: "info",
-              },
+          En este espacio encontrarás toda la información para que puedas acceder a mi contenido exclusivo 🔞🔥
+
+          Puedes elegir una opción para continuar:`,
+        {
+          replyMarkup: {
+            inline_keyboard: [
+              [
+                {
+                  text: "📘 Detalles del canal 🔞",
+                  callback_data: "info",
+                },
+              ],
+              [
+                {
+                  text: "💳 Enviar comprobante de pago 📸",
+                  callback_data: "pago",
+                },
+              ],
+              [
+                {
+                  text: "❌ Cancelar",
+                  callback_data: "cancelar",
+                },
+              ],
             ],
-            [
-              {
-                text: "💳 Enviar comprobante de pago 📸",
-                callback_data: "pago",
-              },
-            ],
-            [
-              {
-                text: "❌ Cancelar",
-                callback_data: "cancelar",
-              },
-            ],
-          ],
+          },
         },
-      },
-    );
+      );
+    } catch (error) {
+      console.error("Error registrando usuario:", error);
+
+      return bot.sendMessage(
+        msg.chat.id,
+        "❌ Ocurrió un error al iniciar. Intenta nuevamente",
+        error,
+      );
+    }
   });
 
   /* ==================================================
@@ -79,21 +106,21 @@ Puedes elegir una opción para continuar:`,
         msg.message.chat.id,
         `📘 Detalles del canal 🔞
 
-🔸 El canal ofrece contenido exclusivo para suscriptores.
+      🔸 El canal ofrece contenido exclusivo para suscriptores.
 
-🔸 En el canal encontrarás mucho contenido, sin censura,🔥 exclusivo⭐ y completo😏
+      🔸 En el canal encontrarás mucho contenido, sin censura,🔥 exclusivo⭐ y completo😏
 
-🔸 Fotos y videos 📹
+      🔸 Fotos y videos 📹
 
-🔸 Colaboraciones 🔞
+      🔸 Colaboraciones 🔞
 
-🔸 La suscripción tiene un costo de acceso mensual por solo $${NEGOCIO.precios.mensual.mxn}.00 MXN (PESOS) o $${NEGOCIO.precios.mensual.usd} USD (DOLARES). Por ${NEGOCIO.precios.mensual.dias}.
+      🔸 La suscripción tiene un costo de acceso mensual por solo $${NEGOCIO.precios.mensual.mxn}.00 MXN (PESOS) o $${NEGOCIO.precios.mensual.usd} USD (DOLARES). Por ${NEGOCIO.precios.mensual.dias}.
 
-🔸 Para obtener acceso, debes enviar una captura de pantalla de la transferencia o de tu comprobante de pago.
+      🔸 Para obtener acceso, debes enviar una captura de pantalla de la transferencia o de tu comprobante de pago.
 
-🔸 Tu suscripción me ayuda a seguir creciendo como creador de contenido.
+      🔸 Tu suscripción me ayuda a seguir creciendo como creador de contenido.
 
-¿Deseas continuar al proceso de pago o cancelar?`,
+      ¿Deseas continuar al proceso de pago o cancelar?`,
 
         {
           replyMarkup: {
@@ -119,194 +146,437 @@ Puedes elegir una opción para continuar:`,
     /* ---------------- PAGO ---------------- */
 
     if (opcion === "pago") {
-      usuariosPendientes[userId].status = "esperando_comprobante";
-      // const card = CONFIG.PAYMENT_CARD.toString;
-      // card = card.replace(/.(?=(?:.{4})+$)/g, "$& ");
-      await bot.sendMessage(
-        msg.message.chat.id,
-        `¡Genial! 🥵
+      try {
+        const usuario = await crear_ObtenerUsuario({
+          telegram_id: userId,
+          username: msg.from.username || null,
+          nombre: msg.from.first_name || null,
+        });
+        const suscripcionActiva = await obtenerSuscripcionActiva(usuario.id);
 
-Para unirte es muy sencillo:`,
-      );
+        //verifica si el usuario tiene una suscripcion activa
+        if (suscripcionActiva) {
+          return bot.sendMessage(
+            msg.message.chat.id,
+            `⚠️ Ya tienes una suscripción activa.
 
-      await sleep(1800);
+        📅 Tu suscripción actual vence el:
 
-      await bot.sendMessage(
-        msg.message.chat.id,
-        `1️⃣ Realiza tu pago o transferencia 💳
+        ${new Date(suscripcionActiva.fecha_vencimiento).toLocaleString("es-MX")}
 
-2️⃣ Envía una captura o foto del comprobante de pago 📸
+        Si deseas renovarla, utiliza la opción de renovación cuando corresponda.`,
+          );
+        }
+        //genera una nueva suscripcion pendiente
+        const fechaInicio = new Date();
 
-3️⃣ ¡Listo! ⭐ Una vez enviado, el administrador verificará tu pago y te dará acceso ℹ️`,
-      );
+        const fechaVencimiento = new Date(fechaInicio);
 
-      await sleep(1500);
+        fechaVencimiento.setDate(
+          fechaVencimiento.getDate() + NEGOCIO.precios.mensual.dias,
+        );
 
-      await bot.sendMessage(
-        msg.message.chat.id,
-        `💸 Costo: $${NEGOCIO.precios.mensual.mxn}.00 MXN (pesos mexicanos) o $${NEGOCIO.precios.mensual.usd} USD (dolares estadounidenses) por ${NEGOCIO.precios.mensual.dias} días.`,
-      );
+        const suscripcion = await crearSuscripcion({
+          usuario_id: usuario.id,
+          fecha_inicio: fechaInicio.toISOString(),
+          fecha_vencimiento: fechaVencimiento.toISOString(),
+          estado: "pendiente",
+        });
 
-      await sleep(1800);
+        await bot.sendMessage(
+          msg.message.chat.id,
+          `¡Genial! 🥵
 
-      await bot.sendMessage(
-        msg.message.chat.id,
-        `🪙 Número de tarjeta (BBVA):
+          Para unirte es muy sencillo:`,
+        );
+
+        await sleep(1800);
+
+        await bot.sendMessage(
+          msg.message.chat.id,
+          `1️⃣ Realiza tu pago o transferencia 💳
+
+           2️⃣ Envía una captura o foto del comprobante de pago 📸
+
+           3️⃣ ¡Listo! ⭐ Una vez enviado, el administrador verificará tu pago y te dará acceso ℹ️`,
+        );
+
+        await sleep(1500);
+
+        await bot.sendMessage(
+          msg.message.chat.id,
+          `💸 Costo: $${NEGOCIO.precios.mensual.mxn}.00 MXN (pesos mexicanos) o $${NEGOCIO.precios.mensual.usd} USD (dolares estadounidenses) por ${NEGOCIO.precios.mensual.dias} días.`,
+        );
+
+        await sleep(1800);
+
+        await bot.sendMessage(
+          msg.message.chat.id,
+          `🪙 Número de tarjeta (BBVA):
           
           ${CONFIG.PAYMENT_CARD}
 
         Titular: ${CONFIG.PAYMENT_HOLDER}
         
         Concepto: TLG`,
-      );
+        );
 
-      await sleep(1800);
+        await sleep(1800);
 
-      await bot.sendMessage(
-        msg.message.chat.id,
-        `💲 También puedes pagar por PayPal:
+        await bot.sendMessage(
+          msg.message.chat.id,
+          `💲 También puedes pagar por PayPal:
         ${CONFIG.PAYPAL_URL}`,
-      );
+        );
 
-      await sleep(1000);
-      //// REVISAR SI HAY OFERTAS
-      await revisarOfertas(
-        true,
-        bot,
-        msg.message.chat.id,
-        NEGOCIO,
-        sleep, // si ya tienes una función sleep definida
-      );
+        await sleep(1000);
+        //// REVISAR SI HAY OFERTAS
+        await revisarOfertas(
+          true,
+          bot,
+          msg.message.chat.id,
+          NEGOCIO,
+          sleep, // si ya tienes una función sleep definida
+        );
 
-      return bot.sendMessage(
-        msg.message.chat.id,
-        `💟 ENVIA TU COMPROBANTE! 📲
+        return bot.sendMessage(
+          msg.message.chat.id,
+          `💟 ENVIA TU COMPROBANTE! 📲
 
 Si no deseas continuar o suscribirte, puedes cancelar en cualquier momento.`,
-        {
-          replyMarkup: {
-            inline_keyboard: [
-              [
-                {
-                  text: "❌ Cancelar",
-                  callback_data: "cancelar",
-                },
+          {
+            replyMarkup: {
+              inline_keyboard: [
+                [
+                  {
+                    text: "❌ Cancelar",
+                    callback_data: "cancelar",
+                  },
+                ],
               ],
-            ],
+            },
           },
-        },
-      );
+        );
+      } catch (error) {
+        console.error("Error creando suscripción:", error);
+
+        return bot.sendMessage(
+          msg.message.chat.id,
+          "❌ Ocurrió un error al preparar tu suscripción. Intenta nuevamente continuar al pago.",
+          {
+            replyMarkup: {
+              inline_keyboard: [
+                [
+                  {
+                    text: "💳 Reintentar proceso de pago",
+                    callback_data: "pago",
+                  },
+                ],
+                [
+                  {
+                    text: "❌ Cancelar",
+                    callback_data: "cancelar",
+                  },
+                ],
+              ],
+            },
+          },
+        );
+      }
     }
     /* ---------------- RENOVAR PAGO ---------------- */
 
     if (opcion === "renovar_pago") {
-      usuariosPendientes[userId] = {
-        ...usuariosPendientes[userId],
-        status: "esperando_comprobante",
-        tipoPago: "renovacion",
-      };
+      try {
+        // =========================================================
+        // 1. OBTENER USUARIO
+        // =========================================================
 
-      return bot.sendMessage(
-        msg.message.chat.id,
-        `💳 ¡Perfecto! Puedes realizar tu pago.
+        const usuario = await crear_ObtenerUsuario({
+          telegram_id: userId,
+          username: msg.from.username || null,
+          nombre: msg.from.first_name || null,
+        });
 
-Una vez realizado, envía aquí la captura o foto de tu comprobante de pago 📸
+        // =========================================================
+        // 2. BUSCAR SUSCRIPCIÓN ACTIVA
+        // =========================================================
 
-El administrador revisará tu comprobante y procesará tu renovación.
+        const suscripcionActiva = await obtenerSuscripcionActiva(usuario.id);
 
-⚠️ Si ya realizaste el pago, simplemente envía el comprobante.`,
-        {
-          replyMarkup: {
-            inline_keyboard: [
-              [
-                {
-                  text: "❌ Cancelar renovación",
-                  callback_data: "cancelar_renovacion",
-                },
+        if (!suscripcionActiva) {
+          return bot.sendMessage(
+            msg.message.chat.id,
+            `⚠️ No tienes una suscripción activa para renovar.
+
+            Si deseas obtener acceso nuevamente, realiza una nueva suscripción iniciando el proceso de nuevo pulsando /start.`,
+          );
+        }
+
+        // =========================================================
+        // 4. MOSTRAR INFORMACIÓN DE PAGO
+        // =========================================================
+
+        return bot.sendMessage(
+          msg.message.chat.id,
+          `💳 ¡Perfecto! Puedes realizar tu pago.
+
+          Una vez realizado, envía aquí la captura o foto de tu comprobante de pago 📸
+
+          El administrador revisará tu comprobante y procesará tu renovación.
+
+          ⚠️ Si ya realizaste el pago, simplemente envía el comprobante.
+
+          ________________________________
+          
+          Tu suscripción actual activa:
+
+          📅 *Vencimiento:*
+
+          ${new Date(suscripcionActiva.fecha_vencimiento).toLocaleString(
+            "es-MX",
+          )}`,
+
+          {
+            replyMarkup: {
+              inline_keyboard: [
+                [
+                  {
+                    text: "❌ Cancelar renovación",
+                    callback_data: "cancelar_renovacion",
+                  },
+                ],
               ],
-            ],
+            },
           },
-        },
-      );
+        );
+      } catch (error) {
+        console.error("Error preparando renovación:", error);
+
+        return bot.sendMessage(
+          msg.message.chat.id,
+          "⚠️ Ocurrió un error al preparar tu renovación. Intenta nuevamente.",
+          error,
+        );
+      }
     }
 
     /* ---------------- CANCELAR RENOVACIÓN ---------------- */
 
     if (opcion === "cancelar_renovacion") {
-      delete usuariosPendientes[userId];
-
       return bot.sendMessage(
         msg.message.chat.id,
         `🚫 Renovación cancelada.
 
-Tu suscripción no ha sido renovada.
+  Tu suscripción no ha sido renovada.
 
-Si posteriormente deseas continuar con tu suscripción, puedes realizar el proceso nuevamente.`,
+  Si posteriormente deseas continuar con tu suscripción, puedes realizar el proceso nuevamente pulsando /start.`,
       );
     }
 
     /* ---------------- CANCELAR ---------------- */
 
     if (opcion === "cancelar") {
-      delete usuariosPendientes[userId];
+      try {
+        const usuario =
+          await usuariosPendientes.obtenerUsuarioPorTelegramId(userId);
+        if (!usuario) {
+          return bot.sendMessage(
+            msg.message.chat.id,
+            "❌ No se encontro al usuario.",
+          );
+        }
 
-      return bot.sendMessage(
-        msg.message.chat.id,
-        `🚫 Proceso cancelado.
+        const suscripcion = await obtenerSuscripcionPendiente(usuario.id);
 
-Puedes escribir /start para comenzar de nuevo. 😊`,
-      );
+        if (!suscripcion) {
+          return bot.sendMessage(
+            msg.message.chat.id,
+            "❌ No existe ningún proceso de suscripción para cancelar.",
+          );
+        }
+
+        console.log(
+          "suscripcion",
+          suscripcion.id,
+          "estado",
+          suscripcion.estado,
+        );
+
+        // Evitar cancelar una suscripción que ya cambió de estado
+        if (suscripcion.estado !== "pendiente") {
+          return bot.sendMessage(
+            msg.message.chat.id,
+            "❌ Esta suscripción ya no puede cancelarse.",
+          );
+        }
+
+        await actualizarEstadoSuscripcion(suscripcion.id, "cancelada");
+
+        await bot.sendMessage(
+          msg.message.chat.id,
+          "Proceso de suscripcion cancelado correctamente!",
+        );
+
+        return bot.sendMessage(
+          msg.message.chat.id,
+          `❌ Proceso cancelado.
+
+    Si deseas intentarlo nuevamente, deberás comenzar el proceso desde /start. 😊`,
+        );
+      } catch (error) {
+        console.log("===== ERROR CANCELAR =====");
+        console.log(error);
+
+        return bot.sendMessage(
+          msg.message.chat.id,
+          `❌ Ocurrió un error:
+    ${error.message}`,
+        );
+      }
+    }
+
+    /*-----------------REENVIAR COMPROBANTE ---------------*/
+    if (opcion == "reenviar") {
+      try {
+        return bot.sendMessage(
+          msg.message.chat.id,
+          `🔄 Puedes enviar nuevamente tu comprobante.
+
+    Este nuevo comprobante será asociado a la misma suscripción.
+
+    📸 Envía ahora la imagen de tu comprobante.`,
+        );
+      } catch (error) {
+        console.log("===== ERROR REENVIAR =====");
+        console.log(error);
+
+        return bot.sendMessage(
+          msg.message.chat.id,
+          "❌ Ocurrió un error.",
+          error,
+        );
+      }
     }
   });
-
   /* ==================================================
      RECIBIR COMPROBANTE
+     esta funcion actuara automaticamente siempre y cuando:
+     -Tengas una suscripcion creada y pendiente
+     -No tengas ya un pago pendiente por revision, por lo que no podras volver a mandar otro
+      hasta que se acepte o rechace.
+    -Tu anterior comprobante sea rechazado por lo que podras enviar otro, aun cuando no pre-
+      siones el comando volver a enviar.
   ================================================== */
 
   bot.on("photo", async (msg) => {
     const userId = msg.from.id;
 
-    if (
-      !usuariosPendientes[userId] ||
-      usuariosPendientes[userId].status !== "esperando_comprobante"
-    ) {
-      return bot.sendMessage(
-        msg.chat.id,
-        "⚠️ No estás en el proceso de envío de comprobante. Escribe /start para comenzar.",
+    // -----------------------------------------
+    // 1. Obtener usuario desde la BD
+    // -----------------------------------------
+
+    try {
+      const usuario = await crear_ObtenerUsuario({
+        telegram_id: userId,
+        username: msg.from.username || null,
+        nombre: msg.from.first_name || null,
+      });
+
+      // -----------------------------------------
+      // 2. Buscar suscripción pendiente
+      // -----------------------------------------
+
+      const suscripcionPendiente = await obtenerSuscripcionPendiente(
+        usuario.id,
       );
-    }
 
-    const fileId = msg.photo[msg.photo.length - 1].file_id;
+      if (!suscripcionPendiente) {
+        return bot.sendMessage(
+          msg.chat.id,
+          "⚠️ No tienes una suscripción pendiente de pago.\n\n" +
+            "Primero inicia el proceso de suscripción.",
+        );
+      }
 
-    const tipoPago = usuariosPendientes[userId].tipoPago || "nuevo";
+      // -----------------------------------------
+      // 3. Verificar que no exista ya
+      //    un pago pendiente para esa suscripción
+      // -----------------------------------------
 
-    usuariosPendientes[userId] = {
-      status: "pendiente_revision",
-      tipoPago: tipoPago,
-      fileId: fileId,
-      firstName: msg.from.first_name,
-      lastName: msg.from.last_name || "",
-      username: msg.from.username || "Sin username",
-      id: userId,
-    };
+      const pagoExistente = await obtenerPagoPendientePorSuscripcion(
+        suscripcionPendiente.id,
+      );
 
-    await bot.sendMessage(
-      msg.chat.id,
-      "✅ Comprobante recibido. El administrador revisará tu pago pronto.",
-    );
+      if (pagoExistente) {
+        return bot.sendMessage(
+          msg.chat.id,
+          "⚠️ Ya tienes un comprobante pendiente de revisión.\n\n" +
+            "Por favor espera a que el administrador revise tu pago.",
+        );
+      }
 
-    await sleep(1500);
+      // -----------------------------------------
+      // 4. Obtener file_id de Telegram
+      // -----------------------------------------
 
-    await bot.sendPhoto(CONFIG.ADMIN_ID, fileId, {
-      caption: `📩 NUEVO COMPROBANTE
+      const fileId = msg.photo[msg.photo.length - 1].file_id;
 
-👤 Nombre: ${msg.from.first_name} ${msg.from.last_name || ""}
+      // -----------------------------------------
+      // 5. Determinar tipo de pago
+      // -----------------------------------------
 
-📛 Usuario: @${msg.from.username || "Sin username"}
+      const tipoPago = "nueva_suscripcion";
 
-🆔 ID: ${userId}
+      // -----------------------------------------
+      // 6. Registrar pago en BD
+      // -----------------------------------------
 
-💎 TipoPago: ${tipoPago}
+      const pago = await crearPago({
+        suscripcion_id: suscripcionPendiente.id,
+        tipo_pago: tipoPago,
+        monto: NEGOCIO.precios.mensual.mxn,
+        comprobante_file_id: fileId,
+      });
+
+      // -----------------------------------------
+      // 7. Confirmar al usuario
+      // -----------------------------------------
+
+      await bot.sendMessage(
+        msg.chat.id,
+        "📩 Comprobante enviado correctamente.\n\n" +
+          "Tu pago ha sido enviado al administrador para su revisión.\n\n" +
+          "Por favor espera su respuesta pacientemente. 😊",
+      );
+
+      await sleep(1500);
+
+      // -----------------------------------------
+      // 8. Avisar al administrador
+      // -----------------------------------------
+
+      await bot.sendPhoto(CONFIG.ADMIN_ID, fileId, {
+        caption: `
+📩 NUEVO COMPROBANTE
+
+👤 Nombre:
+${msg.from.first_name} ${msg.from.last_name || ""}
+
+📛 Usuario:
+@${msg.from.username || "Sin username"}
+
+🆔 Telegram ID:
+${userId}
+
+💎 Tipo de pago:
+${tipoPago}
+
+🗂️ ID del pago:
+${pago.id}
+
+📋 ID de suscripción:
+${suscripcionPendiente.id}
 
 ────────────────────
 
@@ -316,18 +586,26 @@ Puedes escribir /start para comenzar de nuevo. 😊`,
 ❌ Rechazar:
 /rechazar_${userId}
 
-📲 Recordar pago:
+📲 Recordar pago manualmente: 
 /recordarPago_${userId}
-
-👍🏻 Aceptar Renovacion:
-/aceptarRenovacion_${userId}
 
 ⛔ Eliminar del canal:
 /eliminar_${userId}`,
-    });
+      });
+    } catch (error) {
+      console.error("Error registrando pago:", error);
+
+      return bot.sendMessage(
+        msg.chat.id,
+        "❌ Ocurrió un error al registrar tu comprobante.\n\n" +
+          "Intenta nuevamente.\n",
+        error,
+      );
+    }
   });
 };
 
+///FUNCION DE OFERTAS DISPONIBLES
 async function revisarOfertas(
   nuevo,
   bot,

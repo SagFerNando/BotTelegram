@@ -8,5 +8,8 @@ const CONFIG = {
   PAYMENT_CARD: Number(process.env.PAYMENT_CARD),
   PAYMENT_HOLDER: process.env.PAYMENT_HOLDER,
   PAYPAL_URL: process.env.PAYPAL_URL,
+
+  SUPABASE_URL: process.env.SUPABASE_URL,
+  SUPABASE_KEY: process.env.SUPABASE_KEY,
 };
 module.exports = CONFIG;

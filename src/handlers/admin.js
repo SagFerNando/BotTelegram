@@ -1,13 +1,40 @@
+const supabase = require("../data/supabase");
+const sleep = require("../utils/sleep.js");
 const usuariosPendientes = require("../data/usuarios");
-const sleep = require("../utils/sleep");
 const CONFIG = require("../config/config");
 const NEGOCIO = require("../config/globals");
-
+const { obtenerUsuarioPorTelegramId } = require("../data/usuarios");
+const {
+  obtenerUltimaSuscripcion,
+  actualizarFechaVencimiento,
+  actualizarEstadoSuscripcion,
+  obtenerSuscripcionPorId,
+} = require("../data/suscripciones");
+const {
+  obtenerPagosPorSuscripcion,
+  obtenerPagoPorId,
+  actualizarPago,
+  obtenerPagosPorUsuario,
+} = require("../data/pagos");
 const {
   generarEnlaceInvitacion,
   verificarUsuarioEnCanal,
   eliminarUsuarioDelCanal,
 } = require("../services/telegram");
+//--------------------------------------------------------
+//FUNCION PARA DETALLAR ERRORES
+
+function obtenerDetalleError(error) {
+  if (error?.response?.data) {
+    return JSON.stringify(error.response.data, null, 2);
+  }
+
+  if (error?.message) {
+    return error.message;
+  }
+
+  return String(error);
+}
 
 module.exports = (bot) => {
   // ------------------------------------------------------
@@ -41,46 +68,266 @@ module.exports = (bot) => {
     }
 
     try {
-      //Se genera el enlace de Invitacion al canal mediante esta funcion del archivo telegram.js
+      //  Buscar usuario
+      const usuario = await obtenerUsuarioPorTelegramId(userId);
+
+      if (!usuario) {
+        return bot.sendMessage(
+          msg.chat.id,
+          "❌ No se encontró el usuario en la base de datos.",
+        );
+      }
+      //1 buscar pago pendiente
+      const pagos = await obtenerPagosPorUsuario(usuario.id, "pendiente");
+      if (!pagos || pagos.length === 0) {
+        return bot.sendMessage(
+          msg.chat.id,
+          "⚠️ No se encontró ningún pago pendiente para este usuario.",
+        );
+      }
+
+      // 3. Tomar el pago pendiente más reciente
+      const pago = pagos[0];
+
+      // 4. Obtener la suscripción relacionada con el pago
+      const suscripcion = await obtenerUltimaSuscripcion(usuario.id);
+
+      if (!suscripcion) {
+        return bot.sendMessage(
+          msg.chat.id,
+          "❌ Este usuario no tiene ninguna suscripción registrada.",
+        );
+      }
+
+      const esRenovacion = pago.tipo_pago === "renovacion";
+
+      const tipoPagoTexto = esRenovacion ? "RENOVACIÓN" : "NUEVA SUSCRIPCIÓN";
+
+      const estaEnCanal = false; //await verificarUsuarioEnCanal(userId);
+
+      // =========================================================
+      // 6. CALCULAR FECHAS
+      // =========================================================
+
+      const ahora = new Date();
+      let fechaInicio;
+      let fechaVencimiento;
+      let nuevafecha;
+
+      if (esRenovacion) {
+        /*/////////////////////////////
+         * RENOVACIÓN
+         *
+         * Si todavía tiene tiempo restante, conservamos
+         * su fecha de vencimiento actual y agregamos 30 días.
+         *
+         * Si ya venció, comenzamos desde ahora.
+         */
+
+        const vencimientoActual = new Date(suscripcion.fecha_vencimiento);
+
+        if (vencimientoActual > ahora) {
+          fechaInicio = new Date(suscripcion.fecha_inicio);
+
+          fechaVencimiento = new Date(vencimientoActual);
+
+          nuevafecha =
+            fechaVencimiento.getDate() + NEGOCIO.precios.mensual.dias;
+          fechaVencimiento.setDate(nuevafecha);
+        } else {
+          fechaInicio = ahora;
+
+          fechaVencimiento = new Date(ahora);
+
+          nuevafecha =
+            fechaVencimiento.getDate() + NEGOCIO.precios.mensual.dias;
+          fechaVencimiento.setDate(nuevafecha);
+        }
+      } else {
+        /*///////////////////////////
+         * NUEVA SUSCRIPCIÓN
+         *
+         * Los 30 días comienzan desde el momento
+         * en que el administrador aprueba el pago.
+         */
+
+        fechaInicio = ahora;
+
+        fechaVencimiento = new Date(ahora);
+
+        nuevafecha = fechaVencimiento.getDate() + NEGOCIO.precios.mensual.dias;
+        fechaVencimiento.setDate(nuevafecha);
+      }
+
+      // =========================================================
+      // 7. ACTUALIZAR PAGO
+      // =========================================================
+
+      await actualizarPago(pago.id, "estado", "aprobado");
+      // =========================================================
+      // 8. ACTUALIZAR SUSCRIPCIÓN
+      // =========================================================
+
+      let suscripcionActualizada;
+      if (esRenovacion) {
+        /*
+         * Para renovación conservamos la misma suscripción
+         * y actualizamos su vencimiento.
+         */
+        suscripcionActualizada = await actualizarFechaVencimiento(
+          suscripcion.id,
+          fechaVencimiento.toISOString(),
+        );
+      } else {
+        /*
+         * Para nueva suscripción: activamos la suscripción y dejamos las fechas
+         * comenzando desde la aprobación.
+         */
+        suscripcionActualizada = await actualizarEstadoSuscripcion(
+          suscripcion.id,
+          "activa",
+        );
+        /*
+         * actualizarEstadoSuscripcion() solamente cambia el estado, por lo que actualizamos las fechas
+         * directamente aquí.
+         */
+
+        const { data, error } = await supabase
+          .from("suscripciones")
+          .update({
+            fecha_inicio: fechaInicio.toISOString(),
+            fecha_vencimiento: fechaVencimiento.toISOString(),
+
+            estado: "activa",
+          })
+          .eq("id", suscripcion.id)
+          .select()
+          .single();
+
+        if (error) {
+          throw error;
+        }
+
+        suscripcionActualizada = data;
+      }
+
+      // =========================================================
+      // 9. GENERAR ENLACE SOLO SI NO ESTÁ EN EL CANAL
+      // =========================================================
+
       const enlace = await generarEnlaceInvitacion();
 
       if (!enlace) {
         return bot.sendMessage(
           msg.chat.id,
-          "❌ No fue posible generar el enlace de invitación.",
+          `⚠️ El pago fue aprobado y la suscripción fue registrada, pero no se pudo generar el enlace de invitación.`,
         );
       }
 
-      console.log("Enlace generado:", enlace);
+      console.log("Enlace generado:");
+      if (!estaEnCanal) {
+        // -------------------------------------------------------
+        // EL USUARIO NO ESTÁ EN EL CANAL Y SE LE DA ACCESO
+        // -------------------------------------------------------
 
-      await bot.sendMessage(
-        userId,
-        `🎉 ¡Tu pago fue aprobado! ✅
+        await bot.sendMessage(
+          userId,
+          `🎉 ¡Tu pago fue aprobado! ✅
 
-Ya puedes ingresar al canal premium utilizando el siguiente enlace:
+        Ya puedes ingresar al canal premium utilizando el siguiente enlace:
 
-${enlace}
+        ${enlace}
 
-⚠️ Este enlace:
+        ⚠️ Este enlace:
 
-• Solo puede usarse una vez.
-• Expira en 24 horas.`,
-      );
+        • Solo puede usarse una vez.
+        • Expira en 24 horas.`,
+        );
 
-      await sleep(1200);
+        await sleep(1200);
 
-      delete usuariosPendientes[userId];
+        // 8. Avisar al administrador
+        return bot.sendMessage(
+          msg.chat.id,
+          `✅ Pago aprobado correctamente.
 
-      return bot.sendMessage(msg.chat.id, "✅ Usuario aprobado correctamente.");
+        👤 Usuario: ${userId}
+
+        🧾 Pago: ${pago.id}
+
+        📋 Suscripción: ${suscripcion.id}
+
+        💳 Tipo:
+        ${tipoPagoTexto}`,
+        );
+      } else {
+        // -------------------------------------------------------
+        // EL USUARIO YA ESTÁ EN EL CANAL
+        // -------------------------------------------------------
+
+        await bot.sendMessage(
+          userId,
+          `🎉 ¡Pago aprobado!
+          ✅ Tu pago ha sido verificado correctamente.
+          ✨ Puedes seguir disfrutando del canal premium con normalidad durante los próximos 30 días.
+
+
+          📅 Tu suscripción está activa hasta:
+          ${nuevafecha}
+
+          🔄 Tu acceso al canal continúa activo.
+          ¡Muchas gracias por seguir apoyando mi contenido! ❤️`,
+        );
+
+        //avisar al administrador
+        return bot.sendMessage(
+          msg.chat.id,
+          `✅ Pago aprobado correctamente.
+
+        👤 Usuario: ${userId}
+
+        🧾 Pago: ${pago.id}
+
+        📋 Suscripción: ${suscripcion.id}
+
+        💳 Tipo:
+        ${tipoPagoTexto}
+
+        📅 Vencimiento:
+        ${nuevafecha}`,
+        );
+      }
     } catch (error) {
-      console.log("===== ERROR APROBAR =====");
-      console.log(error.response?.data || error);
+      console.error("Error aprobando pago:", error);
 
       return bot.sendMessage(
         msg.chat.id,
-        `Error al aprobar usuario:
+        `❌ Ocurrió un error al aprobar el pago. Intenta nuevamente. Detalles:
 
-${error.message}`,
+        👤 Usuario: ${userId}
+        🧾 Pago: ${pago.id}
+        📋 Suscripción: ${suscripcion.id}
+        💳 Tipo:
+        ${tipoPagoTexto}
+        💎 Estado de la suscripcion:
+        ${suscripcion.estado}
+        📲 Enlace generado:
+        ${enlace}
+        _____________________________________________________
+        Tuvimos problemas con:
+        ${error}`,
+        {
+          replyMarkup: {
+            inline_keyboard: [
+              [
+                {
+                  text: "💳 Reintentar proceso de pago",
+                  callback_data: "pago",
+                },
+              ],
+            ],
+          },
+        },
       );
     }
   });
@@ -117,25 +364,96 @@ ${error.message}`,
     }
 
     try {
-      const respuesta = await bot.sendMessage(
+      //  Buscar usuario
+      const usuario = await obtenerUsuarioPorTelegramId(userId);
+
+      if (!usuario) {
+        return bot.sendMessage(
+          msg.chat.id,
+          "❌ No se encontró el usuario en la base de datos.",
+        );
+      }
+      //buscar pagos
+      const pagos = await obtenerPagosPorUsuario(usuario.id, "pendiente");
+      if (!pagos || pagos.length === 0) {
+        return bot.sendMessage(
+          msg.chat.id,
+          "⚠️ No se encontró ningún pago pendiente para este usuario.",
+        );
+      }
+      // 1. Obtener el pago
+      const pago = pagos[0];
+
+      if (!pago) {
+        return bot.sendMessage(msg.chat.id, "❌ No se encontró el pago.");
+      }
+
+      // 2. Comprobar que todavía pueda ser rechazado
+      if (pago.estado !== "pendiente") {
+        return bot.sendMessage(
+          msg.chat.id,
+          `❌ El pago ${pago.id} ya no está pendiente de revisión, Ya fue aprobado o rechazado o ya expiro.\n\nEstado actual: ${pago.estado}`,
+        );
+      }
+
+      // 3. Obtener la suscripción relacionada
+      const suscripcion = await obtenerSuscripcionPorId(pago.suscripcion_id);
+
+      if (!suscripcion) {
+        return bot.sendMessage(
+          msg.chat.id,
+          "❌ No se encontró la suscripción relacionada con este pago.",
+        );
+      }
+
+      // 4. Marcar el pago como rechazado
+      await actualizarPago(pago.id, "estado", "rechazado");
+
+      await bot.sendMessage(
         userId,
         `❌ Tu comprobante fue rechazado.
+        
 Verifica:
 > Que sea correcto y total el monto Transferido.
 > Que sea legible, correcta y comprobable tu comprobante.
 > Que tu comprobante sea sobre el pago y no de otra cuestion.
 > Si todo es correcto comienza el proceso de nuevo y envia tu comprobante nuevamente.
 
-Si crees que es un error, contacta al administrador o envia un nuevo comprobante con una nota de la situacion en la imagen.`,
+
+Puedes volver a enviar otro comprobante para esta misma suscripción si consideras que hubo un error.
+
+También puedes cancelar completamente este proceso.
+
+¿Qué deseas hacer?`,
+        //Si crees que es un error, contacta al administrador o envia un nuevo comprobante con una nota de la situacion en la imagen.
+        {
+          replyMarkup: {
+            inline_keyboard: [
+              [
+                {
+                  text: "🔄 Enviar otro comprobante",
+                  callback_data: `reenviar`,
+                },
+              ],
+              [
+                {
+                  text: "❌ Cancelar proceso",
+                  callback_data: `cancelar`,
+                },
+              ],
+            ],
+          },
+        },
       );
 
       console.log("Mensaje enviado correctamente:");
 
-      console.log(respuesta);
+      //console.log(respuesta);
 
-      delete usuariosPendientes[userId];
-
-      return bot.sendMessage(msg.chat.id, "🚫 Usuario rechazado.");
+      return bot.sendMessage(
+        msg.chat.id,
+        `🚫 Pago ${pago.id} rechazado correctamente.\n\nSuscripción ${suscripcion.id} permanece pendiente.`,
+      );
     } catch (error) {
       console.log("===== ERROR RECHAZAR =====");
       console.log(error);
@@ -249,56 +567,56 @@ ${error.message}`,
   // este comando se usa si el usuario aun esta en el canal, ya que solo le notifica que se acepto
   // su pago y lo mantiene en el canal, sin enviar otro enlace de invitacion.
 
-  bot.on("text", async (msg) => {
-    if (!msg.text.startsWith("/aceptarRenovacion_")) {
-      return;
-    }
+  //   bot.on("text", async (msg) => {
+  //     if (!msg.text.startsWith("/aceptarRenovacion_")) {
+  //       return;
+  //     }
 
-    if (msg.from.id !== CONFIG.ADMIN_ID) {
-      return bot.sendMessage(
-        msg.chat.id,
-        "🚫 No tienes permiso para usar este comando.",
-      );
-    }
+  //     if (msg.from.id !== CONFIG.ADMIN_ID) {
+  //       return bot.sendMessage(
+  //         msg.chat.id,
+  //         "🚫 No tienes permiso para usar este comando.",
+  //       );
+  //     }
 
-    const partes = msg.text.trim().split("_");
+  //     const partes = msg.text.trim().split("_");
 
-    if (partes.length < 2) {
-      return bot.sendMessage(msg.chat.id, "Uso:\n/aceptarRenovacion_ID");
-    }
+  //     if (partes.length < 2) {
+  //       return bot.sendMessage(msg.chat.id, "Uso:\n/aceptarRenovacion_ID");
+  //     }
 
-    const userId = Number(partes[1]);
+  //     const userId = Number(partes[1]);
 
-    if (isNaN(userId)) {
-      return bot.sendMessage(msg.chat.id, "❌ ID inválido.");
-    }
+  //     if (isNaN(userId)) {
+  //       return bot.sendMessage(msg.chat.id, "❌ ID inválido.");
+  //     }
 
-    try {
-      await bot.sendMessage(
-        userId,
-        `🎉 ¡Pago recibido y verificado! ✅
+  //     try {
+  //       await bot.sendMessage(
+  //         userId,
+  //         `🎉 ¡Pago recibido y verificado! ✅
 
-Tu suscripción ha sido renovada correctamente.
+  // Tu suscripción ha sido renovada correctamente.
 
-✨ Puedes seguir disfrutando del canal premium con normalidad durante los próximos 30 días.
+  // ✨ Puedes seguir disfrutando del canal premium con normalidad durante los próximos 30 días.
 
-¡Muchas gracias por seguir apoyando mi contenido! ❤️`,
-      );
+  // ¡Muchas gracias por seguir apoyando mi contenido! ❤️`,
+  //       );
 
-      delete usuariosPendientes[userId];
+  //       delete usuariosPendientes[userId];
 
-      return bot.sendMessage(msg.chat.id, "✅ Usuario aprobado correctamente.");
-    } catch (error) {
-      console.log(error);
+  //       return bot.sendMessage(msg.chat.id, "✅ Usuario aprobado correctamente.");
+  //     } catch (error) {
+  //       console.log(error);
 
-      return bot.sendMessage(
-        msg.chat.id,
-        `❌ No fue posible completar la renovación.
+  //       return bot.sendMessage(
+  //         msg.chat.id,
+  //         `❌ No fue posible completar la renovación.
 
-${error.message}`,
-      );
-    }
-  });
+  // ${error.message}`,
+  //       );
+  //     }
+  //   });
 
   // ------------------------------------------------------
   // ELIMINAR USUARIO
