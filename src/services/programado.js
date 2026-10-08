@@ -14,9 +14,9 @@ const {
 } = require("../data/suscripciones");
 
 //funcion para iniciar el proceso de mantenimiento de cron
-function iniciarMantenimiento() {
+function iniciarMantenimiento(bot) {
   // Ejecutar cada hora
-  cron.schedule(" 44 0 * * *", async () => {
+  cron.schedule(" 29 16 * * *", async () => {
     console.log("===== MANTENIMIENTO DE SUSCRIPCIONES =====");
 
     try {
@@ -46,7 +46,18 @@ function iniciarMantenimiento() {
       for (const item of porvencer) {
         if (item.telegram_id) {
           try {
-            await recordarPago(item.telegram_id);
+            const resultado = await recordarPago(bot, item.telegram_id);
+
+            if (resultado.enviado) {
+              console.log(
+                `✅ Recordatorio enviado al usuario ${resultado.userId} : ${item.usuario_nombre}`,
+              );
+              // Marcar el recordatorio como enviado en Supabase.
+            } else {
+              console.error(
+                `❌ Falló el recordatorio para ${resultado.userId}: ${resultado.error}`,
+              );
+            }
             await actualizarSuscripcion(
               item.suscripcion_id,
               "recordatorio_enviado",

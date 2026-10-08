@@ -25,19 +25,6 @@ const {
   eliminarUsuarioDelCanal,
 } = require("../services/telegram");
 //--------------------------------------------------------
-//FUNCION PARA DETALLAR ERRORES
-
-function obtenerDetalleError(error) {
-  if (error?.response?.data) {
-    return JSON.stringify(error.response.data, null, 2);
-  }
-
-  if (error?.message) {
-    return error.message;
-  }
-
-  return String(error);
-}
 
 module.exports = (bot) => {
   // ------------------------------------------------------
@@ -504,7 +491,24 @@ ${error.message}`,
       return bot.sendMessage(msg.chat.id, "❌ ID inválido.");
     }
     //se manda a llamar la funcion que ahora es independiente de recordar pago y s ele envia su user de telegram
-    await recordarPago(userId);
+    const resultado = await recordarPago(bot, userId);
+
+    if (resultado.enviado) {
+      return bot.sendMessage(
+        msg.chat.id,
+        `✅ Recordatorio enviado correctamente.
+
+    👤 Usuario de Telegram: ${resultado.userId}`,
+      );
+    }
+
+    return bot.sendMessage(
+      msg.chat.id,
+      `❌ No fue posible enviar el recordatorio.
+
+    👤 Usuario de Telegram: ${resultado.userId}
+    ⚠️ Error: ${resultado.error}`,
+    );
   });
 
   // ------------------------------------------------------
@@ -581,7 +585,11 @@ ${error.message}`,
   });
 };
 
-async function recordarPago(userId) {
+//-----------------------------------------
+//FUNCION INDEPENDIENTE DE RECORDAR PAGO
+//--------------------------------------
+
+async function recordarPago(bot, userId) {
   try {
     // Se envia un solo mensaje con todos los datos para rehacer el pago, teniendo la opcion de cancelar
     await bot.sendMessage(
@@ -628,19 +636,19 @@ Una vez realizado el pago, envía tu comprobante para verificarlo.
       },
     );
 
-    return bot.sendMessage(
-      msg.chat.id,
-      "✅ Recordatorio enviado correctamente.",
-    );
+    return {
+      enviado: true,
+      userId,
+      error: null,
+    };
   } catch (error) {
-    console.log(error);
+    console.error(`Error enviando recordatorio a ${userId}:`, error);
 
-    return bot.sendMessage(
-      msg.chat.id,
-      `❌ No fue posible enviar el recordatorio.
-
-${error.message}`,
-    );
+    return {
+      enviado: false,
+      userId,
+      error: error.message,
+    };
   }
 }
 module.exports.recordarPago = recordarPago;

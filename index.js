@@ -26,7 +26,7 @@ require("./src/handlers/users")(bot);
 require("./src/handlers/admin")(bot);
 
 // Iniciar bot
-iniciarMantenimiento();
+iniciarMantenimiento(bot);
 bot.start();
 
 console.log("🤖 Bot iniciado correctamente...");
