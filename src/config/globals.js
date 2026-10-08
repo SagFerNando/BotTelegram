@@ -7,7 +7,7 @@ const NEGOCIO = {
     mensual: {
       mxn: 120,
       usd: 7.07,
-      dias: 30,
+      dias: 1,
     },
   },
 
@@ -21,7 +21,7 @@ const NEGOCIO = {
     },
 
     masMeses: {
-      activa: true,
+      activa: false,
       mxn: 200,
       usd: 11.8,
       meses: 2,

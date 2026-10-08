@@ -1,13 +1,16 @@
 const supabase = require("../data/supabase");
 const sleep = require("../utils/sleep.js");
-const usuariosPendientes = require("../data/usuarios");
 const CONFIG = require("../config/config");
 const NEGOCIO = require("../config/globals");
-const { obtenerUsuarioPorTelegramId } = require("../data/usuarios");
 const {
+  obtenerUsuarioPorTelegramId,
+  crear_ObtenerUsuario,
+} = require("../data/usuarios");
+const {
+  obtenerSuscripcion,
   obtenerUltimaSuscripcion,
   actualizarFechaVencimiento,
-  actualizarEstadoSuscripcion,
+  actualizarSuscripcion,
   obtenerSuscripcionPorId,
 } = require("../data/suscripciones");
 const {
@@ -82,7 +85,7 @@ module.exports = (bot) => {
       if (!pagos || pagos.length === 0) {
         return bot.sendMessage(
           msg.chat.id,
-          "⚠️ No se encontró ningún pago pendiente para este usuario.",
+          "⚠️ No se encontró ningún pago pendiente para este usuario!",
         );
       }
 
@@ -103,7 +106,7 @@ module.exports = (bot) => {
 
       const tipoPagoTexto = esRenovacion ? "RENOVACIÓN" : "NUEVA SUSCRIPCIÓN";
 
-      const estaEnCanal = false; //await verificarUsuarioEnCanal(userId);
+      const estaEnCanal = await verificarUsuarioEnCanal(userId); //false //si necesitas ver el enlace generado
 
       // =========================================================
       // 6. CALCULAR FECHAS
@@ -183,14 +186,11 @@ module.exports = (bot) => {
          * Para nueva suscripción: activamos la suscripción y dejamos las fechas
          * comenzando desde la aprobación.
          */
-        suscripcionActualizada = await actualizarEstadoSuscripcion(
+        suscripcionActualizada = await actualizarSuscripcion(
           suscripcion.id,
+          "estado",
           "activa",
         );
-        /*
-         * actualizarEstadoSuscripcion() solamente cambia el estado, por lo que actualizamos las fechas
-         * directamente aquí.
-         */
 
         const { data, error } = await supabase
           .from("suscripciones")
@@ -217,6 +217,13 @@ module.exports = (bot) => {
 
       const enlace = await generarEnlaceInvitacion();
 
+      const suscripcionActiva = await obtenerSuscripcion(
+        usuario.id,
+        "estado",
+        "activa",
+      );
+      //const fechalimit = nevaInfoUser.fecha_vencimiento.text;
+
       if (!enlace) {
         return bot.sendMessage(
           msg.chat.id,
@@ -224,7 +231,6 @@ module.exports = (bot) => {
         );
       }
 
-      console.log("Enlace generado:");
       if (!estaEnCanal) {
         // -------------------------------------------------------
         // EL USUARIO NO ESTÁ EN EL CANAL Y SE LE DA ACCESO
@@ -241,7 +247,10 @@ module.exports = (bot) => {
         ⚠️ Este enlace:
 
         • Solo puede usarse una vez.
-        • Expira en 24 horas.`,
+        • Expira en 24 horas.
+
+        📅 Tu suscripción está activa hasta:
+          ${fechalimit}`,
         );
 
         await sleep(1200);
@@ -252,13 +261,17 @@ module.exports = (bot) => {
           `✅ Pago aprobado correctamente.
 
         👤 Usuario: ${userId}
+        ${usuario.nombre}
 
         🧾 Pago: ${pago.id}
 
         📋 Suscripción: ${suscripcion.id}
 
         💳 Tipo:
-        ${tipoPagoTexto}`,
+        ${tipoPagoTexto}
+
+        📅 Vencimiento:
+        ${new Date(suscripcionActiva.fecha_vencimiento).toLocaleString("es-MX")}`,
         );
       } else {
         // -------------------------------------------------------
@@ -273,7 +286,7 @@ module.exports = (bot) => {
 
 
           📅 Tu suscripción está activa hasta:
-          ${nuevafecha}
+          ${new Date(suscripcionActiva.fecha_vencimiento).toLocaleString("es-MX")}
 
           🔄 Tu acceso al canal continúa activo.
           ¡Muchas gracias por seguir apoyando mi contenido! ❤️`,
@@ -284,7 +297,8 @@ module.exports = (bot) => {
           msg.chat.id,
           `✅ Pago aprobado correctamente.
 
-        👤 Usuario: ${userId}
+        👤 Usuario: ${userId} 
+        ${usuario.nombre}
 
         🧾 Pago: ${pago.id}
 
@@ -294,7 +308,7 @@ module.exports = (bot) => {
         ${tipoPagoTexto}
 
         📅 Vencimiento:
-        ${nuevafecha}`,
+        ${new Date(suscripcionActiva.fecha_vencimiento).toLocaleString("es-MX")}`,
         );
       }
     } catch (error) {
@@ -305,14 +319,7 @@ module.exports = (bot) => {
         `❌ Ocurrió un error al aprobar el pago. Intenta nuevamente. Detalles:
 
         👤 Usuario: ${userId}
-        🧾 Pago: ${pago.id}
-        📋 Suscripción: ${suscripcion.id}
-        💳 Tipo:
-        ${tipoPagoTexto}
-        💎 Estado de la suscripcion:
-        ${suscripcion.estado}
-        📲 Enlace generado:
-        ${enlace}
+
         _____________________________________________________
         Tuvimos problemas con:
         ${error}`,
@@ -496,134 +503,15 @@ ${error.message}`,
     if (isNaN(userId)) {
       return bot.sendMessage(msg.chat.id, "❌ ID inválido.");
     }
-
-    try {
-      // Se envia un solo mensaje con todos los datos para rehacer el pago, teniendo la opcion de cancelar
-      await bot.sendMessage(
-        userId,
-        `⏰ ¡Hola! Te recuerdo que se acerca la fecha de tu siguiente pago mensual.
-
-Para continuar disfrutando del contenido premium debes realizar nuevamente tu pago.
-
-💸 Costo: $${NEGOCIO.precios.mensual.mxn}.00 MXN (pesos mexicanos) o $${NEGOCIO.precios.mensual.usd} USD (dolares estadounidenses) 
-
-por ${NEGOCIO.precios.mensual.dias} días.
-
-🪙 Número de tarjeta (BBVA):
-          
-          ${CONFIG.PAYMENT_CARD}
-
-        Titular: ${CONFIG.PAYMENT_HOLDER}
-        
-        Concepto: TLG
-
-💲 También puedes pagar por PayPal:
-        ${CONFIG.PAYPAL_URL}
-
-Una vez realizado el pago, envía tu comprobante para verificarlo.
-
-⚠️ Si no realizas tu pago, tu acceso al canal podrá ser eliminado.`,
-        {
-          replyMarkup: {
-            inline_keyboard: [
-              [
-                {
-                  text: "💳 Realizar pago",
-                  callback_data: "renovar_pago",
-                },
-              ],
-              [
-                {
-                  text: "❌ No continuar",
-                  callback_data: "cancelar_renovacion",
-                },
-              ],
-            ],
-          },
-        },
-      );
-
-      return bot.sendMessage(
-        msg.chat.id,
-        "✅ Recordatorio enviado correctamente.",
-      );
-    } catch (error) {
-      console.log(error);
-
-      return bot.sendMessage(
-        msg.chat.id,
-        `❌ No fue posible enviar el recordatorio.
-
-${error.message}`,
-      );
-    }
+    //se manda a llamar la funcion que ahora es independiente de recordar pago y s ele envia su user de telegram
+    await recordarPago(userId);
   });
 
   // ------------------------------------------------------
-  // ACEPTAR RENOVACION
+  // ELIMINAR
   // ------------------------------------------------------
-  // Recibe comprobante de pago para que lo visualice el administrador
-  // Aceptado el comprobante se acepta mediante el comando, muy diferente al de aprovar ya que
-  // este comando se usa si el usuario aun esta en el canal, ya que solo le notifica que se acepto
-  // su pago y lo mantiene en el canal, sin enviar otro enlace de invitacion.
-
-  //   bot.on("text", async (msg) => {
-  //     if (!msg.text.startsWith("/aceptarRenovacion_")) {
-  //       return;
-  //     }
-
-  //     if (msg.from.id !== CONFIG.ADMIN_ID) {
-  //       return bot.sendMessage(
-  //         msg.chat.id,
-  //         "🚫 No tienes permiso para usar este comando.",
-  //       );
-  //     }
-
-  //     const partes = msg.text.trim().split("_");
-
-  //     if (partes.length < 2) {
-  //       return bot.sendMessage(msg.chat.id, "Uso:\n/aceptarRenovacion_ID");
-  //     }
-
-  //     const userId = Number(partes[1]);
-
-  //     if (isNaN(userId)) {
-  //       return bot.sendMessage(msg.chat.id, "❌ ID inválido.");
-  //     }
-
-  //     try {
-  //       await bot.sendMessage(
-  //         userId,
-  //         `🎉 ¡Pago recibido y verificado! ✅
-
-  // Tu suscripción ha sido renovada correctamente.
-
-  // ✨ Puedes seguir disfrutando del canal premium con normalidad durante los próximos 30 días.
-
-  // ¡Muchas gracias por seguir apoyando mi contenido! ❤️`,
-  //       );
-
-  //       delete usuariosPendientes[userId];
-
-  //       return bot.sendMessage(msg.chat.id, "✅ Usuario aprobado correctamente.");
-  //     } catch (error) {
-  //       console.log(error);
-
-  //       return bot.sendMessage(
-  //         msg.chat.id,
-  //         `❌ No fue posible completar la renovación.
-
-  // ${error.message}`,
-  //       );
-  //     }
-  //   });
-
-  // ------------------------------------------------------
-  // ELIMINAR USUARIO
-  // ------------------------------------------------------
-  // Este comando se usa para eliminar un mienbro del canal directamente sin entrar a las
-  // configuraciones, cuando se requiera o cuando su suscripcion ha terminado y no renovo.
-  // Elimina cualquier miembro tan solo con su ID excepto al administrador, y solo el puede usarlo.
+  // El administrador elimina al usuario manualmente cuando lo considere necesario
+  // Solo el admin puede y debe usar el comando mas el id de usuario
 
   bot.on("text", async (msg) => {
     if (!msg.text.startsWith("/eliminar_")) {
@@ -634,6 +522,12 @@ ${error.message}`,
       return bot.sendMessage(
         msg.chat.id,
         "🚫 No tienes permiso para usar este comando.",
+      );
+    }
+    if (userId == CONFIG.ADMIN_ID) {
+      return bot.sendMessage(
+        msg.chat.id,
+        "🚫 No Puedes eliminar al Administrador del canal.",
       );
     }
 
@@ -686,3 +580,67 @@ ${error.message}`,
     }
   });
 };
+
+async function recordarPago(userId) {
+  try {
+    // Se envia un solo mensaje con todos los datos para rehacer el pago, teniendo la opcion de cancelar
+    await bot.sendMessage(
+      userId,
+      `⏰ ¡Hola! Te recuerdo que se acerca la fecha de tu siguiente pago mensual.
+
+Para continuar disfrutando del contenido premium debes realizar nuevamente tu pago.
+
+💸 Costo: $${NEGOCIO.precios.mensual.mxn}.00 MXN (pesos mexicanos) o $${NEGOCIO.precios.mensual.usd} USD (dolares estadounidenses) 
+
+por ${NEGOCIO.precios.mensual.dias} días.
+
+🪙 Número de tarjeta (BBVA):
+          
+          ${CONFIG.PAYMENT_CARD}
+
+        Titular: ${CONFIG.PAYMENT_HOLDER}
+        
+        Concepto: TLG
+
+💲 También puedes pagar por PayPal:
+        ${CONFIG.PAYPAL_URL}
+
+Una vez realizado el pago, envía tu comprobante para verificarlo.
+
+⚠️ Si no realizas tu pago, tu acceso al canal podrá ser eliminado.`,
+      {
+        replyMarkup: {
+          inline_keyboard: [
+            [
+              {
+                text: "💳 Realizar pago",
+                callback_data: "renovar_pago",
+              },
+            ],
+            [
+              {
+                text: "❌ No continuar",
+                callback_data: "cancelar",
+              },
+            ],
+          ],
+        },
+      },
+    );
+
+    return bot.sendMessage(
+      msg.chat.id,
+      "✅ Recordatorio enviado correctamente.",
+    );
+  } catch (error) {
+    console.log(error);
+
+    return bot.sendMessage(
+      msg.chat.id,
+      `❌ No fue posible enviar el recordatorio.
+
+${error.message}`,
+    );
+  }
+}
+module.exports.recordarPago = recordarPago;

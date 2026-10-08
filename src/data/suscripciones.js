@@ -1,15 +1,52 @@
 const supabase = require("./supabase");
 
-async function obtenerSuscripcionActiva(usuarioId) {
+async function crearSuscripcion({
+  usuario_id,
+  fecha_inicio,
+  fecha_vencimiento,
+  estado = "pendiente",
+  recordatorio_enviado = "false",
+}) {
+  const { data, error } = await supabase
+    .from("suscripciones")
+    .insert({
+      usuario_id,
+      fecha_inicio,
+      fecha_vencimiento,
+      estado,
+      recordatorio_enviado,
+    })
+    .select()
+    .single();
+
+  if (error) {
+    throw error;
+  }
+
+  return data;
+}
+async function obtenerSuscripcion(usuarioId, campo, valor) {
   const { data, error } = await supabase
     .from("suscripciones")
     .select("*")
     .eq("usuario_id", usuarioId)
-    .eq("estado", "activa")
-    .gt("fecha_vencimiento", new Date().toISOString())
-    .order("fecha_vencimiento", { ascending: false })
+    .eq(campo, valor)
+    .order("id", { ascending: false })
     .limit(1)
     .maybeSingle();
+
+  if (error) throw error;
+
+  return data;
+}
+
+async function obtenerSuscripciones(campo, valor) {
+  const { data, error } = await supabase
+    .from("suscripciones")
+    .select("*")
+    .eq(campo, valor)
+    .gt("fecha_vencimiento", new Date().toISOString())
+    .order("fecha_vencimiento", { ascending: false });
 
   if (error) {
     throw error;
@@ -19,7 +56,7 @@ async function obtenerSuscripcionActiva(usuarioId) {
 }
 async function obtenerSuscripcionPorId(Id) {
   const { data, error } = await supabase
-    .from("pagos")
+    .from("suscripciones")
     .select("*")
     .eq("id", Id)
     .single();
@@ -47,26 +84,17 @@ async function obtenerUltimaSuscripcion(usuarioId) {
   return data;
 }
 
-async function crearSuscripcion({
-  usuario_id,
-  fecha_inicio,
-  fecha_vencimiento,
-  estado = "pendiente",
-}) {
+async function actualizarSuscripcion(Id, campo, valor) {
   const { data, error } = await supabase
     .from("suscripciones")
-    .insert({
-      usuario_id,
-      fecha_inicio,
-      fecha_vencimiento,
-      estado,
+    .update({
+      [campo]: valor,
     })
+    .eq("id", Id)
     .select()
     .single();
 
-  if (error) {
-    throw error;
-  }
+  if (error) throw error;
 
   return data;
 }
@@ -92,15 +120,14 @@ async function actualizarFechaVencimiento(
   return data;
 }
 
-async function actualizarEstadoSuscripcion(suscripcionId, estado) {
+async function obtenerSuscripcionesActivasSinRecordatorio() {
   const { data, error } = await supabase
     .from("suscripciones")
-    .update({
-      estado,
-    })
-    .eq("id", suscripcionId)
-    .select()
-    .single();
+    .select("*")
+    .eq("estado", "activa")
+    .eq("recordatorio_enviado", false) // aquí mejor usar booleano si la columna es booleana
+    .gt("fecha_vencimiento", new Date().toISOString())
+    .order("fecha_vencimiento", { ascending: false });
 
   if (error) {
     throw error;
@@ -113,28 +140,56 @@ async function marcarSuscripcionVencida(suscripcionId) {
   return actualizarEstadoSuscripcion(suscripcionId, "vencida");
 }
 
-async function obtenerSuscripcionPendiente(usuarioId) {
+async function obtenerSuscripcionesPorVencer(inicio, fin) {
   const { data, error } = await supabase
     .from("suscripciones")
-    .select("*")
-    .eq("usuario_id", usuarioId)
-    .eq("estado", "pendiente")
-    .order("id", { ascending: false })
-    .limit(1)
-    .maybeSingle();
+    .select(
+      `
+            id,
+            fecha_vencimiento,
+            estado,
+            recordatorio_enviado,
+            usuario_id,
+            usuarios (
+                id,
+                telegram_id,
+                nombre
+            )
+        `,
+    )
+    .eq("estado", "activa")
+    .or(
+      "recordatorio_enviado.is.null,recordatorio_enviado.eq.false,recordatorio_enviado.eq.false",
+    )
+    .gte("fecha_vencimiento", inicio.toISOString())
+    .lte("fecha_vencimiento", fin.toISOString());
 
-  if (error) throw error;
+  if (error) {
+    console.error("Error al consultar Supabase:", error);
+    throw error;
+  }
 
-  return data;
+  // Aplanar o mapear la estructura para adaptar la respuesta
+  return data.map((item) => ({
+    suscripcion_id: item.id,
+    fecha_vencimiento: item.fecha_vencimiento,
+    usuario_id: item.usuarios?.id,
+    telegram_id: item.usuarios?.telegram_id,
+    usuario_nombre: item.usuarios?.nombre,
+  }));
 }
+
 module.exports = {
   crearSuscripcion,
   obtenerSuscripcionPorId,
-  obtenerSuscripcionActiva,
+  obtenerSuscripciones,
   obtenerUltimaSuscripcion,
+  obtenerSuscripcionesActivasSinRecordatorio,
+  actualizarSuscripcion,
 
-  obtenerSuscripcionPendiente,
+  obtenerSuscripcionesPorVencer,
+
+  obtenerSuscripcion,
   actualizarFechaVencimiento,
-  actualizarEstadoSuscripcion,
   marcarSuscripcionVencida,
 };

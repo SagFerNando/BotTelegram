@@ -1,6 +1,7 @@
 const TeleBot = require("telebot");
 const CONFIG = require("./src/config/config");
 const supabase = require("./src/data/supabase");
+const { iniciarMantenimiento } = require("./src/services/programado");
 const bot = new TeleBot({
   token: CONFIG.TELEGRAM_TOKEN,
 });
@@ -25,6 +26,7 @@ require("./src/handlers/users")(bot);
 require("./src/handlers/admin")(bot);
 
 // Iniciar bot
+iniciarMantenimiento();
 bot.start();
 
 console.log("🤖 Bot iniciado correctamente...");

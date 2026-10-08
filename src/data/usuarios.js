@@ -1,7 +1,5 @@
 const supabase = require("./supabase");
 
-const usuariosPendientes = {};
-
 async function obtenerUsuarioPorTelegramId(telegramId) {
   const { data, error } = await supabase
     .from("usuarios")
@@ -44,9 +42,26 @@ async function crear_ObtenerUsuario(usuario) {
 
   return await crearUsuario(usuario);
 }
+async function obtenerUsuarioPorSuscripcionId(suscripcionId) {
+  const query = `
+        SELECT 
+            u.id,
+            u.nombre,
+            u.telegram_id AS telegramId
+        FROM usuarios u
+        INNER JOIN suscripciones s ON u.id = s.id_user
+        WHERE s.id = $1;
+    `;
+
+  const resultado = await db.query(query, [suscripcionId]);
+
+  // Retornamos el primer usuario encontrado o null si no existe
+  return resultado.rows[0] || null;
+}
 
 module.exports = {
   obtenerUsuarioPorTelegramId,
   crearUsuario,
   crear_ObtenerUsuario,
+  obtenerUsuarioPorSuscripcionId,
 };
