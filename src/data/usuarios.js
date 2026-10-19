@@ -43,20 +43,42 @@ async function crear_ObtenerUsuario(usuario) {
   return await crearUsuario(usuario);
 }
 async function obtenerUsuarioPorSuscripcionId(suscripcionId) {
-  const query = `
-        SELECT 
-            u.id,
-            u.nombre,
-            u.telegram_id AS telegramId
-        FROM usuarios u
-        INNER JOIN suscripciones s ON u.id = s.id_user
-        WHERE s.id = $1;
-    `;
+  const { data, error } = await supabase
+    .from("suscripciones")
+    .select(
+      `id,
+      usuario_id,
+      usuarios (
+          id,
+          telegram_id,
+          nombre
+        )
 
-  const resultado = await db.query(query, [suscripcionId]);
+      `,
+    )
+    .eq("id", suscripcionId)
+    .single();
 
-  // Retornamos el primer usuario encontrado o null si no existe
-  return resultado.rows[0] || null;
+  if (error) {
+    // PGRST116 indica que no se encontró una fila
+    // o que la consulta no devolvió una única fila.
+    if (error.code === "PGRST116") {
+      return null;
+    }
+
+    console.error("Error al consultar usuario por suscripción:", error);
+    throw error;
+  }
+
+  if (!data.usuarios) {
+    return null;
+  }
+  return {
+    suscripcion_id: data.id,
+    usuario_id: data.usuarios.id,
+    telegram_id: data.usuarios.telegram_id,
+    usuario_nombre: data.usuarios.nombre,
+  };
 }
 
 module.exports = {

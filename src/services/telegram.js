@@ -65,6 +65,15 @@ async function verificarUsuarioEnCanal(userId) {
 
 async function eliminarUsuarioDelCanal(userId) {
   try {
+    if (Number(userId) === Number(CONFIG.ADMIN_ID)) {
+      return {
+        eliminado: false,
+        userId,
+        mensaje:
+          "No se puede eliminar ya que el usuario es administrador del canal.",
+      };
+    }
+
     const response = await axios.post(
       `https://api.telegram.org/bot${CONFIG.TELEGRAM_TOKEN}/banChatMember`,
       {
@@ -73,15 +82,33 @@ async function eliminarUsuarioDelCanal(userId) {
       },
     );
 
-    console.log(`Usuario ${userId} eliminado del canal.`);
+    if (response.data?.ok && response.data.result === true) {
+      console.log(`Usuario ${userId} eliminado del canal.`);
 
-    return response.data.result;
+      return {
+        eliminado: true,
+        userId,
+        mensaje: "Usuario eliminado correctamente del canal.",
+      };
+    }
+
+    return {
+      eliminado: false,
+      userId,
+      mensaje: "Telegram no confirmó la eliminación del usuario.",
+    };
   } catch (error) {
-    console.log("===== ERROR ELIMINANDO USUARIO =====");
+    console.error("===== ERROR ELIMINANDO USUARIO =====");
+    console.error(error.response?.data || error.message || error);
 
-    console.log(error.response?.data || error);
-
-    throw error;
+    return {
+      eliminado: false,
+      userId,
+      mensaje:
+        error.response?.data?.description ||
+        error.message ||
+        "Ocurrió un error al eliminar al usuario.",
+    };
   }
 }
 

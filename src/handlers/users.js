@@ -97,7 +97,6 @@ module.exports = (bot) => {
           NEGOCIO,
           sleep, // si ya tienes una función sleep definida
         );
-        console.log("estamos viendo info", opcion);
         return bot.sendMessage(
           msg.message.chat.id,
           `📘 Detalles del canal 🔞

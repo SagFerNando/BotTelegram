@@ -45,7 +45,6 @@ async function obtenerSuscripciones(campo, valor) {
     .from("suscripciones")
     .select("*")
     .eq(campo, valor)
-    .gt("fecha_vencimiento", new Date().toISOString())
     .order("fecha_vencimiento", { ascending: false });
 
   if (error) {
@@ -120,27 +119,13 @@ async function actualizarFechaVencimiento(
   return data;
 }
 
-async function obtenerSuscripcionesActivasSinRecordatorio() {
-  const { data, error } = await supabase
-    .from("suscripciones")
-    .select("*")
-    .eq("estado", "activa")
-    .eq("recordatorio_enviado", false) // aquí mejor usar booleano si la columna es booleana
-    .gt("fecha_vencimiento", new Date().toISOString())
-    .order("fecha_vencimiento", { ascending: false });
-
-  if (error) {
-    throw error;
-  }
-
-  return data;
-}
-
 async function marcarSuscripcionVencida(suscripcionId) {
   return actualizarEstadoSuscripcion(suscripcionId, "vencida");
 }
 
 async function obtenerSuscripcionesPorVencer(inicio, fin) {
+  inicio = new Date(inicio);
+  fin = new Date(fin);
   const { data, error } = await supabase
     .from("suscripciones")
     .select(
@@ -184,7 +169,7 @@ module.exports = {
   obtenerSuscripcionPorId,
   obtenerSuscripciones,
   obtenerUltimaSuscripcion,
-  obtenerSuscripcionesActivasSinRecordatorio,
+
   actualizarSuscripcion,
 
   obtenerSuscripcionesPorVencer,
