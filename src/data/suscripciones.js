@@ -31,7 +31,7 @@ async function obtenerSuscripcion(usuarioId, campo, valor) {
     .select("*")
     .eq("usuario_id", usuarioId)
     .eq(campo, valor)
-    .order("id", { ascending: false })
+    .order("fecha_vencimiento", { ascending: false })
     .limit(1)
     .maybeSingle();
 
@@ -67,22 +67,6 @@ async function obtenerSuscripcionPorId(Id) {
   return data;
 }
 
-async function obtenerUltimaSuscripcion(usuarioId) {
-  const { data, error } = await supabase
-    .from("suscripciones")
-    .select("*")
-    .eq("usuario_id", usuarioId)
-    .order("fecha_vencimiento", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
-  if (error) {
-    throw error;
-  }
-
-  return data;
-}
-
 async function actualizarSuscripcion(Id, campo, valor) {
   const { data, error } = await supabase
     .from("suscripciones")
@@ -96,31 +80,6 @@ async function actualizarSuscripcion(Id, campo, valor) {
   if (error) throw error;
 
   return data;
-}
-
-async function actualizarFechaVencimiento(
-  suscripcionId,
-  nuevaFechaVencimiento,
-) {
-  const { data, error } = await supabase
-    .from("suscripciones")
-    .update({
-      fecha_vencimiento: nuevaFechaVencimiento,
-      estado: "activa",
-    })
-    .eq("id", suscripcionId)
-    .select()
-    .single();
-
-  if (error) {
-    throw error;
-  }
-
-  return data;
-}
-
-async function marcarSuscripcionVencida(suscripcionId) {
-  return actualizarEstadoSuscripcion(suscripcionId, "vencida");
 }
 
 async function obtenerSuscripcionesPorVencer(inicio, fin) {
@@ -168,13 +127,10 @@ module.exports = {
   crearSuscripcion,
   obtenerSuscripcionPorId,
   obtenerSuscripciones,
-  obtenerUltimaSuscripcion,
 
   actualizarSuscripcion,
 
   obtenerSuscripcionesPorVencer,
 
   obtenerSuscripcion,
-  actualizarFechaVencimiento,
-  marcarSuscripcionVencida,
 };

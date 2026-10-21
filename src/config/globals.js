@@ -13,7 +13,7 @@ const NEGOCIO = {
 
   ofertas: {
     primerMes: {
-      activa: false,
+      activa: true,
       mxn: 120,
       usd: 7.07,
       meses: 1,
@@ -21,7 +21,7 @@ const NEGOCIO = {
     },
 
     masMeses: {
-      activa: false,
+      activa: true,
       mxn: 200,
       usd: 11.8,
       meses: 2,

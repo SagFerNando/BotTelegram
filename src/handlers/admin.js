@@ -8,17 +8,10 @@ const {
 } = require("../data/usuarios");
 const {
   obtenerSuscripcion,
-  obtenerUltimaSuscripcion,
-  actualizarFechaVencimiento,
   actualizarSuscripcion,
   obtenerSuscripcionPorId,
 } = require("../data/suscripciones");
-const {
-  obtenerPagosPorSuscripcion,
-  obtenerPagoPorId,
-  actualizarPago,
-  obtenerPagosPorUsuario,
-} = require("../data/pagos");
+const { actualizarPago, obtenerPagosPorUsuario } = require("../data/pagos");
 const {
   generarEnlaceInvitacion,
   verificarUsuarioEnCanal,
@@ -49,18 +42,37 @@ module.exports = (bot) => {
 
     const partes = msg.text.trim().split("_");
 
+    // partes[0] = "/aprobar"
+    // partes[1] = IDUSER
+    // partes[2] = MESES (opcional)
+    // partes[3] = PRECIO (opcional)
+
     if (partes.length < 2) {
-      return bot.sendMessage(msg.chat.id, "Uso:\n/aprobar_ID");
+      return bot.sendMessage(
+        msg.chat.id,
+        "Uso:\n/aprobar_ID\n/aprobar_ID_MESES_PRECIO",
+      );
     }
 
     const userId = Number(partes[1]);
-
     if (isNaN(userId)) {
       return bot.sendMessage(msg.chat.id, "❌ El ID del usuario no es válido.");
     }
 
+    // optener valores opcionales de aprobaciones por ofertas
+    var mesesOf = partes[2] ? Number(partes[2]) : 1;
+    var precioOf = partes[3] ? Number(partes[3]) : null;
+
+    // validaciones extra si quieres
+    if (mesesOf !== null && isNaN(mesesOf)) {
+      return bot.sendMessage(msg.chat.id, "❌ Los meses no son válidos.");
+    }
+    if (precioOf !== null && isNaN(precioOf)) {
+      return bot.sendMessage(msg.chat.id, "❌ El precio no es válido.");
+    }
+
     try {
-      //  Buscar usuario
+      //1. Buscar usuario
       const usuario = await obtenerUsuarioPorTelegramId(userId);
 
       if (!usuario) {
@@ -69,7 +81,7 @@ module.exports = (bot) => {
           "❌ No se encontró el usuario en la base de datos.",
         );
       }
-      //1 buscar pago pendiente
+      //2. buscar pago pendiente
       const pagos = await obtenerPagosPorUsuario(usuario.id, "pendiente");
       if (!pagos || pagos.length === 0) {
         return bot.sendMessage(
@@ -82,7 +94,11 @@ module.exports = (bot) => {
       const pago = pagos[0];
 
       // 4. Obtener la suscripción relacionada con el pago
-      const suscripcion = await obtenerUltimaSuscripcion(usuario.id);
+      const suscripcion = await obtenerSuscripcion(
+        usuario.id,
+        "id",
+        pago.suscripcion_id,
+      );
 
       if (!suscripcion) {
         return bot.sendMessage(
@@ -90,10 +106,18 @@ module.exports = (bot) => {
           "❌ Este usuario no tiene ninguna suscripción registrada.",
         );
       }
+      if (
+        suscripcion.estado !== "pendiente" ||
+        suscripcion.estado !== "activa"
+      ) {
+        return bot.sendMessage(
+          msg.chat.id,
+          "❌ Este usuario no tiene ninguna suscripción pendiente o activa por aprobar.",
+        );
+      }
 
-      const esRenovacion = pago.tipo_pago === "renovacion";
-
-      const tipoPagoTexto = esRenovacion ? "RENOVACIÓN" : "NUEVA SUSCRIPCIÓN";
+      const tipoPagoTexto =
+        pago.tipo_pago === "renovacion" ? "RENOVACIÓN" : "NUEVA SUSCRIPCIÓN";
 
       const estaEnCanal = await verificarUsuarioEnCanal(userId); //false //si necesitas ver el enlace generado
 
@@ -104,7 +128,7 @@ module.exports = (bot) => {
       const ahora = new Date();
       let fechaInicio;
       let fechaVencimiento;
-      let nuevafecha;
+      let nuevafecha = new Date();
 
       if (esRenovacion) {
         /*/////////////////////////////
@@ -119,21 +143,18 @@ module.exports = (bot) => {
         const vencimientoActual = new Date(suscripcion.fecha_vencimiento);
 
         if (vencimientoActual > ahora) {
-          fechaInicio = new Date(suscripcion.fecha_inicio);
-
-          fechaVencimiento = new Date(vencimientoActual);
-
-          nuevafecha =
-            fechaVencimiento.getDate() + NEGOCIO.precios.mensual.dias;
-          fechaVencimiento.setDate(nuevafecha);
+          nuevafecha.setDate(
+            vencimientoActual.getDate() +
+              NEGOCIO.precios.mensual.dias * mesesOf,
+          );
         } else {
-          fechaInicio = ahora;
+          fechaInicio = ahora.getDate();
 
           fechaVencimiento = new Date(ahora);
 
-          nuevafecha =
-            fechaVencimiento.getDate() + NEGOCIO.precios.mensual.dias;
-          fechaVencimiento.setDate(nuevafecha);
+          nuevafecha.setDate(
+            fechaVencimiento.getDate() + NEGOCIO.precios.mensual.dias * mesesOf,
+          );
         }
       } else {
         /*///////////////////////////
@@ -143,12 +164,13 @@ module.exports = (bot) => {
          * en que el administrador aprueba el pago.
          */
 
-        fechaInicio = ahora;
+        fechaInicio = ahora.getDate();
 
         fechaVencimiento = new Date(ahora);
 
-        nuevafecha = fechaVencimiento.getDate() + NEGOCIO.precios.mensual.dias;
-        fechaVencimiento.setDate(nuevafecha);
+        nuevafecha.setDate(
+          fechaVencimiento.getDate() + NEGOCIO.precios.mensual.dias,
+        );
       }
 
       // =========================================================
@@ -156,62 +178,25 @@ module.exports = (bot) => {
       // =========================================================
 
       await actualizarPago(pago.id, "estado", "aprobado");
+      if (precioOf !== null) {
+        await actualizarPago(pago.id, "monto", precioOf);
+      }
       // =========================================================
       // 8. ACTUALIZAR SUSCRIPCIÓN
       // =========================================================
 
-      let suscripcionActualizada;
-      if (esRenovacion) {
-        /*
-         * Para renovación conservamos la misma suscripción
-         * y actualizamos su vencimiento.
-         */
-        suscripcionActualizada = await actualizarFechaVencimiento(
-          suscripcion.id,
-          fechaVencimiento.toISOString(),
-        );
-      } else {
-        /*
-         * Para nueva suscripción: activamos la suscripción y dejamos las fechas
-         * comenzando desde la aprobación.
-         */
-        suscripcionActualizada = await actualizarSuscripcion(
-          suscripcion.id,
-          "estado",
-          "activa",
-        );
-
-        const { data, error } = await supabase
-          .from("suscripciones")
-          .update({
-            fecha_inicio: fechaInicio.toISOString(),
-            fecha_vencimiento: fechaVencimiento.toISOString(),
-
-            estado: "activa",
-          })
-          .eq("id", suscripcion.id)
-          .select()
-          .single();
-
-        if (error) {
-          throw error;
-        }
-
-        suscripcionActualizada = data;
-      }
+      await actualizarSuscripcion(
+        suscripcion.id,
+        "fecha_vencimiento",
+        nuevafecha,
+      );
+      await actualizarSuscripcion(suscripcion.id, "estado", "activa");
 
       // =========================================================
       // 9. GENERAR ENLACE SOLO SI NO ESTÁ EN EL CANAL
       // =========================================================
 
       const enlace = await generarEnlaceInvitacion();
-
-      const suscripcionActiva = await obtenerSuscripcion(
-        usuario.id,
-        "estado",
-        "activa",
-      );
-      //const fechalimit = nevaInfoUser.fecha_vencimiento.text;
 
       if (!enlace) {
         return bot.sendMessage(
@@ -260,7 +245,7 @@ module.exports = (bot) => {
         ${tipoPagoTexto}
 
         📅 Vencimiento:
-        ${new Date(suscripcionActiva.fecha_vencimiento).toLocaleString("es-MX")}`,
+        ${nuevafecha.toLocaleString("es-MX")}`,
         );
       } else {
         // -------------------------------------------------------
@@ -275,7 +260,7 @@ module.exports = (bot) => {
 
 
           📅 Tu suscripción está activa hasta:
-          ${new Date(suscripcionActiva.fecha_vencimiento).toLocaleString("es-MX")}
+          ${nuevafecha.toLocaleString("es-MX")}
 
           🔄 Tu acceso al canal continúa activo.
           ¡Muchas gracias por seguir apoyando mi contenido! ❤️`,
@@ -297,7 +282,7 @@ module.exports = (bot) => {
         ${tipoPagoTexto}
 
         📅 Vencimiento:
-        ${new Date(suscripcionActiva.fecha_vencimiento).toLocaleString("es-MX")}`,
+        ${nuevafecha.toLocaleString("es-MX")}`,
         );
       }
     } catch (error) {

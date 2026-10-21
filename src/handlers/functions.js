@@ -5,6 +5,47 @@ const {
   verificarUsuarioEnCanal,
   eliminarUsuarioDelCanal,
 } = require("../services/telegram");
+//-------------------------------------------------------------
+///FUNCION DE OFERTAS DISPONIBLES
+//---------------------------------------------------------
+async function revisarOfertas(
+  nuevo,
+  bot,
+  chatId,
+  NEGOCIO,
+  sleep = (ms) => new Promise((res) => setTimeout(res, ms)),
+) {
+  const oferta1 = NEGOCIO.ofertas.primerMes;
+  const oferta2 = NEGOCIO.ofertas.masMeses;
+  if (oferta1.activa && nuevo) {
+    await bot.sendMessage(
+      chatId,
+      ` 🔥SUSCRIPCION MENSUAL!
+
+        🔸 😈😈 POR TIEMPO LIMITADO! OPTEN TU ACCESO DEL PRIMER MES 
+        POR $${NEGOCIO.ofertas.primerMes.mxn}.00 MXN (PESOS) o $${NEGOCIO.ofertas.primerMes.usd} USD (DOLARES),
+
+        Envia tu comprobante.
+        solo para nuevos miembros.`,
+    );
+
+    await sleep(1500);
+  }
+  if (oferta2.activa) {
+    await bot.sendMessage(
+      chatId,
+      ` 💦 OFERTA ESPECIAL!
+
+        🔸 🍆🍆 APROVECHA SOLO HOY! >>${NEGOCIO.ofertas.masMeses.meses} MESES << 
+        POR $${NEGOCIO.ofertas.masMeses.mxn}.00 MXN (PESOS) o $${NEGOCIO.ofertas.masMeses.usd} USD (DOLARES),
+
+        Envia tu comprobante Ya.
+        solo por tiempo limitado`,
+    );
+    await sleep(1500);
+  }
+}
+
 //-----------------------------------------------------------
 //FUNCION INDEPENDIENTE DE RECORDAR PAGO Y ELIMINAR USUARIO
 //-----------------------------------------------------------
@@ -119,6 +160,7 @@ Una vez realizado el pago, envía tu comprobante para verificarlo.
   }
 }
 module.exports = {
+  revisarOfertas,
   recordarPago,
   eliminarUsuario,
 };

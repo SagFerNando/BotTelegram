@@ -14,6 +14,7 @@ const {
   crear_ObtenerUsuario,
   obtenerUsuarioPorTelegramId,
 } = require("../data/usuarios");
+const { revisarOfertas } = require("./functions.js");
 
 module.exports = (bot) => {
   /* ==================================
@@ -417,14 +418,12 @@ Si no deseas continuar o suscribirte, puedes cancelar en cualquier momento.`,
 
           await bot.sendMessage(
             msg.message.chat.id,
-            "Proceso de suscripcion cancelado correctamente!",
+            "Proceso de suscripcion cancelado correctamente! \nSi deseas intentarlo nuevamente, deberás comenzar el proceso desde /start. 😊",
           );
 
           return bot.sendMessage(
             msg.message.chat.id,
-            `❌ Proceso cancelado.
-
-    Si deseas intentarlo nuevamente, deberás comenzar el proceso desde /start. 😊`,
+            `❌ Proceso cancelado!  `,
           );
         } catch (error) {
           console.log("==== ERROR CANCELAR ====");
@@ -496,10 +495,14 @@ Si no deseas continuar o suscribirte, puedes cancelar en cualquier momento.`,
       const suscripcion = suscripcionActiva ?? suscripcionPendiente;
 
       if (!suscripcion) {
-        return bot.sendMessage(
+        await bot.sendMessage(
           msg.chat.id,
           "⚠️ No tienes una suscripción pendiente de pago.\n\n" +
             "Primero inicia el proceso de suscripción. Presiona /start",
+        );
+        return bot.sendMessage(
+          msg.chat.id,
+          `No se encontro una suscripcion pendiente de pago para el usuario ${usuario.nombre}`,
         );
       }
 
@@ -559,6 +562,27 @@ Si no deseas continuar o suscribirte, puedes cancelar en cualquier momento.`,
       );
 
       await sleep(1500);
+      var aprobarOferta1,
+        aprobarOferta2 = "";
+      //verificar si hay ofertas ofrecidas
+      if (NEGOCIO.ofertas.masMeses.activa) {
+        aprobarOferta1 =
+          "/aprobar_" +
+          userId +
+          "_" +
+          NEGOCIO.ofertas.masMeses.meses.toString() +
+          "_" +
+          NEGOCIO.ofertas.masMeses.mxn.toString();
+      }
+      if (NEGOCIO.ofertas.primerMes.activa) {
+        aprobarOferta2 =
+          "/aprobar_" +
+          userId +
+          "_" +
+          NEGOCIO.ofertas.primerMes.meses.toString() +
+          "_" +
+          NEGOCIO.ofertas.masMeses.mxn.toString();
+      }
 
       // -----------------------------------------
       // 8. Avisar al administrador
@@ -590,6 +614,8 @@ ${suscripcion.id}
 
 ✅ Aprobar:
 /aprobar_${userId}
+      ${aprobarOferta1}
+            ${aprobarOferta2}
 
 ❌ Rechazar:
 /rechazar_${userId}
@@ -612,42 +638,3 @@ ${suscripcion.id}
     }
   });
 };
-
-///FUNCION DE OFERTAS DISPONIBLES
-async function revisarOfertas(
-  nuevo,
-  bot,
-  chatId,
-  NEGOCIO,
-  sleep = (ms) => new Promise((res) => setTimeout(res, ms)),
-) {
-  const oferta1 = NEGOCIO.ofertas.primerMes;
-  const oferta2 = NEGOCIO.ofertas.masMeses;
-  if (oferta1.activa && nuevo) {
-    await bot.sendMessage(
-      chatId,
-      ` 🔥SUSCRIPCION MENSUAL!
-
-        🔸 😈😈 POR TIEMPO LIMITADO! OPTEN TU ACCESO DEL PRIMER MES 
-        POR $${NEGOCIO.ofertas.primerMes.mxn}.00 MXN (PESOS) o $${NEGOCIO.ofertas.primerMes.usd} USD (DOLARES),
-
-        Envia tu comprobante.
-        solo para nuevos miembros.`,
-    );
-
-    await sleep(1500);
-  }
-  if (oferta2.activa) {
-    await bot.sendMessage(
-      chatId,
-      ` 💦 OFERTA ESPECIAL!
-
-        🔸 🍆🍆 APROVECHA SOLO HOY! >>${NEGOCIO.ofertas.masMeses.meses} MESES << 
-        POR $${NEGOCIO.ofertas.masMeses.mxn}.00 MXN (PESOS) o $${NEGOCIO.ofertas.masMeses.usd} USD (DOLARES),
-
-        Envia tu comprobante Ya.
-        solo por tiempo limitado`,
-    );
-    await sleep(1500);
-  }
-}
