@@ -106,17 +106,14 @@ module.exports = (bot) => {
           "❌ Este usuario no tiene ninguna suscripción registrada.",
         );
       }
-      if (
-        suscripcion.estado !== "pendiente" ||
-        suscripcion.estado !== "activa"
-      ) {
+      if (!["pendiente", "activa"].includes(suscripcion.estado)) {
         return bot.sendMessage(
           msg.chat.id,
-          "❌ Este usuario no tiene ninguna suscripción pendiente o activa por aprobar.",
+          "❌ Este usuario no tiene ninguna suscripción pendiente o activa por aprobar!",
         );
       }
 
-      const tipoPagoTexto =
+      const tipoPago =
         pago.tipo_pago === "renovacion" ? "RENOVACIÓN" : "NUEVA SUSCRIPCIÓN";
 
       const estaEnCanal = await verificarUsuarioEnCanal(userId); //false //si necesitas ver el enlace generado
@@ -130,7 +127,7 @@ module.exports = (bot) => {
       let fechaVencimiento;
       let nuevafecha = new Date();
 
-      if (esRenovacion) {
+      if (tipoPago) {
         /*/////////////////////////////
          * RENOVACIÓN
          *
@@ -242,7 +239,7 @@ module.exports = (bot) => {
         📋 Suscripción: ${suscripcion.id}
 
         💳 Tipo:
-        ${tipoPagoTexto}
+        ${tipoPago}
 
         📅 Vencimiento:
         ${nuevafecha.toLocaleString("es-MX")}`,
@@ -279,7 +276,7 @@ module.exports = (bot) => {
         📋 Suscripción: ${suscripcion.id}
 
         💳 Tipo:
-        ${tipoPagoTexto}
+        ${tipoPago}
 
         📅 Vencimiento:
         ${nuevafecha.toLocaleString("es-MX")}`,
@@ -516,12 +513,6 @@ ${error.message}`,
         "🚫 No tienes permiso para usar este comando.",
       );
     }
-    if (userId == CONFIG.ADMIN_ID) {
-      return bot.sendMessage(
-        msg.chat.id,
-        "🚫 No Puedes eliminar al Administrador del canal.",
-      );
-    }
 
     const partes = msg.text.trim().split("_");
 
@@ -534,6 +525,7 @@ ${error.message}`,
     if (isNaN(userId)) {
       return bot.sendMessage(msg.chat.id, "❌ ID inválido.");
     }
+
     //mada a llamar funcion de eliminar-------------------------------------------
     const resultado = await eliminarUsuario(bot, userId);
 

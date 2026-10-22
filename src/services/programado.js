@@ -11,10 +11,11 @@ const { obtenerUsuarioPorSuscripcionId } = require("../data/usuarios");
 function iniciarMantenimiento(bot) {
   // Ejecutar cada hora
   cron.schedule(" */2 * * * *", async () => {
+    //cron.schedule(" 0 * * * *", async () => {
     console.log("===== MANTENIMIENTO DE SUSCRIPCIONES =====");
     // Asegúrate de normalizar las fechas o trabajar con rangos según tu motor de BD
     const ahora = new Date();
-    console.log(ahora.toISOString());
+    console.log("Hora Local: " + ahora.toLocaleString("es-MX"));
 
     try {
       // =====================================================

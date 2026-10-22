@@ -7,7 +7,7 @@ const NEGOCIO = {
     mensual: {
       mxn: 120,
       usd: 7.07,
-      dias: 1,
+      dias: 31,
     },
   },
 

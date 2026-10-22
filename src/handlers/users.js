@@ -35,7 +35,7 @@ module.exports = (bot) => {
 
       return bot.sendMessage(
         msg.chat.id,
-        `👋 ¡Hola! Bienvenido al Chat de acceso a mi canal premium.
+        `👋 ¡Hola! Bienvenido al Chat de acceso a mi canal premium. 💎
 
           En este espacio encontrarás toda la información para que puedas acceder a mi contenido exclusivo 🔞🔥
 
@@ -110,7 +110,7 @@ module.exports = (bot) => {
 
       🔸 Colaboraciones 🔞
 
-      🔸 La suscripción tiene un costo de acceso mensual por solo $${NEGOCIO.precios.mensual.mxn}.00 MXN (PESOS) o $${NEGOCIO.precios.mensual.usd} USD (DOLARES). Por ${NEGOCIO.precios.mensual.dias}.
+      🔸 La suscripción tiene un costo de acceso mensual por solo $${NEGOCIO.precios.mensual.mxn}.00 MXN (PESOS) o $${NEGOCIO.precios.mensual.usd} USD (DOLARES). Por ${NEGOCIO.precios.mensual.dias} dias.
 
       🔸 Para obtener acceso, debes enviar una captura de pantalla de la transferencia o de tu comprobante de pago.
 
@@ -363,7 +363,7 @@ Si no deseas continuar o suscribirte, puedes cancelar en cualquier momento.`,
       /* ---------------- CANCELAR RENOVACIÓN ---------------- */
 
       if (opcion == "cancelar_renovacion") {
-        return bot.sendMessage(
+        await bot.sendMessage(
           msg.message.chat.id,
           `🚫 Renovación cancelada.
 
@@ -376,7 +376,6 @@ Si no deseas continuar o suscribirte, puedes cancelar en cualquier momento.`,
       /* ---------------- CANCELAR ---------------- */
 
       if (opcion == "cancelar") {
-        console.log("estamos viendo info", opcion);
         try {
           const usuario = await obtenerUsuarioPorTelegramId(userId);
           if (!usuario) {
@@ -393,6 +392,10 @@ Si no deseas continuar o suscribirte, puedes cancelar en cualquier momento.`,
           );
 
           if (!suscripcion) {
+            await bot.sendMessage(
+              msg.message.chat.id,
+              "Proceso de suscripcion cancelado correctamente! \nSi deseas intentarlo nuevamente, deberás comenzar el proceso desde /start. 😊",
+            );
             return bot.sendMessage(
               msg.message.chat.id,
               "❌ No existe ningún proceso de suscripción para cancelar.",
@@ -581,7 +584,7 @@ Si no deseas continuar o suscribirte, puedes cancelar en cualquier momento.`,
           "_" +
           NEGOCIO.ofertas.primerMes.meses.toString() +
           "_" +
-          NEGOCIO.ofertas.masMeses.mxn.toString();
+          NEGOCIO.ofertas.primerMes.mxn.toString();
       }
 
       // -----------------------------------------

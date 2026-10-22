@@ -136,7 +136,7 @@ Una vez realizado el pago, envía tu comprobante para verificarlo.
             [
               {
                 text: "❌ No continuar",
-                callback_data: "cancelar",
+                callback_data: "cancelar_renovacion",
               },
             ],
           ],
